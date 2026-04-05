@@ -1,0 +1,25 @@
+node_modules
+npm-debug.log*
+dist
+build
+coverage
+*.log
+.DS_Store
+.env
+.env.local
+.env.*
+.vercel
+desktop/dist-electron
+desktop/.vite
+desktop/release
+landing-page/dist
+backend/dist
+*.tsbuildinfo
+
+# Local config
+.claude/settings.json
+.claude/settings.local.json
+.claude/plans/
+.claude/memory/
+.mcp.json
+.superpowers/

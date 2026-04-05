@@ -1,0 +1,26 @@
+{
+  "name": "@brifo/landing-page",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo 'No linter configured for @brifo/landing-page'",
+    "test": "echo 'No tests for @brifo/landing-page'"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.5"
+  }
+}

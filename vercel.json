@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run vercel-build",
+  "installCommand": "npm install",
+  "outputDirectory": "landing-page/dist",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "api.brifo.in" }],
+      "destination": "/api"
+    },
+    { "source": "/api", "destination": "/api" },
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60,
+      "includeFiles": "backend/dist/**",
+      "excludeFiles": "{desktop/**,landing-page/**,node_modules/app-builder-bin/**,node_modules/7zip-bin/**,node_modules/electron*/**,node_modules/@electron/**}"
+    }
+  }
+}

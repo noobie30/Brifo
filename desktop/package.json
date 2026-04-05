@@ -1,0 +1,75 @@
+{
+  "name": "@brifo/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Brifo Mac desktop app",
+  "author": "Brifo",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\" \"npm run dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:main": "tsc -p tsconfig.main.json --watch",
+    "dev:electron": "wait-on tcp:5173 dist-electron/main/index.js && nodemon --watch dist-electron --exec \"electron .\"",
+    "build": "npm run typecheck && npm run build:renderer && npm run build:main",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.main.json",
+    "dmg": "npm run build && electron-builder --mac dmg --publish never",
+    "dmg:unsigned": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --publish never",
+    "pack:dir": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --publish never",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
+    "lint": "npm run typecheck",
+    "test": "npm run typecheck"
+  },
+  "dependencies": {
+    "@brifo/shared": "0.1.0",
+    "axios": "^1.7.9",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.1.1",
+    "remark-gfm": "^4.0.1",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "app-builder-bin": "^5.0.0-alpha.10",
+    "autoprefixer": "^10.4.27",
+    "concurrently": "^9.1.2",
+    "electron": "33.2.1",
+    "electron-builder": "^25.1.8",
+    "nodemon": "^3.1.7",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.5",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.brifo.desktop",
+    "productName": "Brifo",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist",
+      "target": [
+        "dmg"
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    }
+  }
+}
