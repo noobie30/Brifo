@@ -5,6 +5,7 @@ import {
   Get,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
@@ -27,6 +28,22 @@ export class IntegrationsController {
   @Get("jira")
   getJiraIntegration(@CurrentUser() user: AuthenticatedUser) {
     return this.integrationsService.getJiraIntegration(user.userId);
+  }
+
+  @Get("jira/projects")
+  getJiraProjects(@CurrentUser() user: AuthenticatedUser) {
+    return this.integrationsService.getJiraProjects(user.userId);
+  }
+
+  @Get("jira/sprints")
+  getJiraSprints(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query("projectId") projectId: string,
+  ) {
+    return this.integrationsService.getJiraSprintsForProject(
+      user.userId,
+      projectId,
+    );
   }
 
   @Post("jira/connect")

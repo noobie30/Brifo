@@ -1,5 +1,4 @@
 /**
- * Vercel serverless entry: forwards to the Nest app.
- * The _backend/ directory is copied from backend/dist/ during vercel-build.
+ * Vercel serverless entry: forwards to the Nest app built at backend/dist/serverless.js
  */
-module.exports = require("./_backend/serverless.js").default;
+module.exports = require("../backend/dist/serverless.js").default;

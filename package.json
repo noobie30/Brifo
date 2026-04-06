@@ -19,7 +19,7 @@
     "test": "npm run test --workspaces",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,css}\"",
     "typecheck": "npm run typecheck --workspaces",
-    "vercel-build": "npm run build --workspace packages/shared && npm run build --workspace backend && npm run build --workspace landing-page && cp -r backend/dist api/_backend"
+    "vercel-build": "npm run build --workspace packages/shared && npm run build --workspace backend && npm run build --workspace landing-page"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
@@ -27,7 +27,7 @@
     "typescript": "^5.6.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "dependencies": {
     "lightningcss": "^1.32.0"

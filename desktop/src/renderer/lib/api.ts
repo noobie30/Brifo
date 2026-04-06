@@ -360,6 +360,32 @@ export interface JiraIntegrationRecord {
   hasApiToken: boolean;
 }
 
+export interface JiraProject {
+  id: string;
+  key: string;
+  name: string;
+}
+
+export interface JiraSprint {
+  id: number;
+  name: string;
+  state: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export async function getJiraProjects() {
+  const { data } = await api.get("/integrations/jira/projects");
+  return data as JiraProject[];
+}
+
+export async function getJiraSprints(projectId: string) {
+  const { data } = await api.get("/integrations/jira/sprints", {
+    params: { projectId },
+  });
+  return data as JiraSprint[];
+}
+
 export async function getJiraIntegration() {
   const { data } = await api.get("/integrations/jira");
   return data as JiraIntegrationRecord;
