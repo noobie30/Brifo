@@ -43,6 +43,8 @@ const electronAPI = {
     ipcRenderer.invoke("permissions:request-microphone") as Promise<boolean>,
   openMicrophoneSettings: () =>
     ipcRenderer.invoke("permissions:open-microphone-settings") as Promise<void>,
+  openScreenRecordingSettings: () =>
+    ipcRenderer.invoke("permissions:open-screen-recording-settings") as Promise<void>,
   openExternal: (url: string) =>
     ipcRenderer.invoke("external:open", url) as Promise<void>,
   showMeetingDetectedNotification: (payload: {
@@ -73,6 +75,14 @@ const electronAPI = {
       _event: unknown,
       payload: { sourceApp?: string; signalKey?: string },
     ) => callback(payload);
+    ipcRenderer.on(channel, listener);
+    return () => {
+      ipcRenderer.removeListener(channel, listener);
+    };
+  },
+  onMeetingEnded: (callback: () => void) => {
+    const channel = "capture:meeting-ended";
+    const listener = () => callback();
     ipcRenderer.on(channel, listener);
     return () => {
       ipcRenderer.removeListener(channel, listener);

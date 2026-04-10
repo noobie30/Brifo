@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import {
   generatedNoteSectionsSchema,
   GeneratedNoteSections,
@@ -28,8 +28,9 @@ export class AiService {
     const includeActionItems = input.includeActionItems ?? true;
 
     if (!input.transcript.length && !input.rawUserNotes?.trim()) {
-      const result = this.generateFallbackNotes(input, includeActionItems);
-      return generatedNoteSectionsSchema.parse(result);
+      throw new BadRequestException(
+        "No transcript or notes available. The meeting audio may still be processing — try again in a moment.",
+      );
     }
 
     if (this.mastraNotesService.isConfigured()) {

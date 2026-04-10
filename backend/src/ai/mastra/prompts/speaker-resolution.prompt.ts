@@ -13,20 +13,22 @@ export function buildSpeakerResolutionPrompt(
 ): string {
   const transcriptLines = buildTranscriptContextLines(input.transcriptSample);
 
+  const hasAttendees = input.attendees.length > 0;
+
   return [
     "You are an expert at identifying speakers in meeting transcripts.",
     "",
-    "Given the transcript below with generic speaker labels and a list of known meeting attendees,",
+    "Given the transcript below with generic speaker labels,",
     "determine which speaker label corresponds to which real person.",
     "",
     "--------------------------------------------------",
     "KNOWN ATTENDEES",
     "--------------------------------------------------",
-    input.attendees.length
+    hasAttendees
       ? input.attendees.map((name, i) => `${i + 1}. ${name}`).join("\n")
-      : "No attendee list available.",
+      : "No attendee list available — extract names from the transcript itself.",
     "",
-    `Logged-in user (meeting organizer): ${input.loggedInUserName}`,
+    `Logged-in user (meeting organizer): ${input.loggedInUserName || "Unknown"}`,
     "",
     "--------------------------------------------------",
     "SPEAKER LABELS TO IDENTIFY",
@@ -40,15 +42,18 @@ export function buildSpeakerResolutionPrompt(
     '- Direct address: "Hey [Name]", "Thanks [Name]", "[Name], can you..."',
     "- The meeting organizer often speaks first or initiates the meeting",
     "- Context clues: role mentions, project ownership, team membership",
-    "- Cross-reference mentions with the attendees list",
+    hasAttendees
+      ? "- Cross-reference mentions with the attendees list"
+      : "- Extract full names mentioned naturally in conversation (e.g., someone saying 'John will handle that')",
     "",
     "--------------------------------------------------",
     "RULES",
     "--------------------------------------------------",
-    "- ONLY use names from the attendees list above -- never invent names",
+    hasAttendees
+      ? "- Prefer names from the attendees list, but if a name is clearly spoken in the transcript and not in the list, you may use it"
+      : "- Extract real names from the transcript — look for introductions, greetings, and direct address",
     "- If you cannot confidently identify a speaker, set their value to null",
-    "- Each attendee can only be mapped to ONE speaker label",
-    "- Each speaker label can only be mapped to ONE attendee",
+    "- Each speaker label can only be mapped to ONE name",
     "- Confidence must be based on clear evidence in the transcript",
     "",
     "--------------------------------------------------",

@@ -25,16 +25,44 @@ export class MeetingsService {
     payload: StartMeetingDto,
   ): Promise<MeetingDocument> {
     let attendees: string[] = [];
+    let resolvedCalendarEventId = payload.calendarEventId;
 
-    if (payload.source === "calendar" && payload.calendarEventId) {
+    // If a calendarEventId is provided, fetch attendees directly
+    if (resolvedCalendarEventId) {
       try {
         attendees = await this.calendarService.getEventAttendees(
           userId,
-          payload.calendarEventId,
+          resolvedCalendarEventId,
         );
       } catch (error) {
         this.logger.warn(
-          `Failed to fetch attendees for calendar event ${payload.calendarEventId}: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to fetch attendees for calendar event ${resolvedCalendarEventId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    // If no attendees yet, try to auto-match to an upcoming calendar event
+    if (!attendees.length) {
+      try {
+        const upcoming = await this.calendarService.getUpcomingEvents(userId);
+        const now = Date.now();
+        const matchWindow = 15 * 60 * 1000; // ±15 minutes
+
+        const match = upcoming.find((event) => {
+          const eventStart = new Date(event.startTime).getTime();
+          return Math.abs(eventStart - now) <= matchWindow;
+        });
+
+        if (match) {
+          resolvedCalendarEventId = match.id;
+          attendees = match.attendees ?? [];
+          this.logger.log(
+            `Auto-matched meeting "${payload.title}" to calendar event "${match.title}" with ${attendees.length} attendees`,
+          );
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Calendar auto-match failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
@@ -43,7 +71,7 @@ export class MeetingsService {
       userId,
       title: payload.title,
       source: payload.source ?? "manual",
-      calendarEventId: payload.calendarEventId,
+      calendarEventId: resolvedCalendarEventId,
       startTime: new Date(),
       status: "in_progress",
       language: payload.language ?? "en",
@@ -76,17 +104,32 @@ export class MeetingsService {
       throw new NotFoundException("Meeting not found");
     }
 
-    // Fire-and-forget speaker resolution
+    // Fire-and-forget speaker resolution with timeout, always mark completed
     void this.resolveAndStoreSpeakerMap(
       userId,
       meetingId,
       meeting,
       loggedInUserName,
-    ).catch((err) => {
-      this.logger.error(
-        `Speaker resolution failed for meeting ${meetingId}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    });
+    )
+      .catch((err) => {
+        this.logger.error(
+          `Speaker resolution failed for meeting ${meetingId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      })
+      .finally(() => {
+        // Always transition out of "processing" status
+        void this.meetingModel
+          .findOneAndUpdate(
+            { _id: meetingId, status: "processing" },
+            { $set: { status: "completed" } },
+          )
+          .exec()
+          .catch((err) => {
+            this.logger.error(
+              `Failed to mark meeting ${meetingId} completed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
+      });
 
     return meeting;
   }
@@ -97,6 +140,8 @@ export class MeetingsService {
     meeting: MeetingDocument,
     loggedInUserName?: string,
   ): Promise<void> {
+    const SPEAKER_RESOLUTION_TIMEOUT_MS = 240_000;
+
     const segmentDocs = await this.transcriptsService.getSegments(
       userId,
       meetingId,
@@ -115,13 +160,23 @@ export class MeetingsService {
       confidence: seg.confidence,
     }));
 
-    const speakerMap = await this.speakerResolutionService.resolveSpeakers({
+    const speakerMapPromise = this.speakerResolutionService.resolveSpeakers({
       meetingId,
       userId,
       loggedInUserName: loggedInUserName || "",
       attendees: meeting.attendees || [],
       segments,
     });
+
+    const timeoutPromise = new Promise<Record<string, string>>(
+      (_, reject) =>
+        setTimeout(
+          () => reject(new Error("Speaker resolution timed out")),
+          SPEAKER_RESOLUTION_TIMEOUT_MS,
+        ),
+    );
+
+    const speakerMap = await Promise.race([speakerMapPromise, timeoutPromise]);
 
     if (Object.keys(speakerMap).length > 0) {
       await this.meetingModel

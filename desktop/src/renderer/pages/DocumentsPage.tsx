@@ -20,6 +20,7 @@ import {
   PageHeader,
   EmptyState,
   Skeleton,
+  StatCard,
 } from "../components/ui";
 
 type DateFilter = "all" | "week" | "month";
@@ -234,7 +235,7 @@ export function DocumentsPage() {
     const normalizedTranscript = manualTranscript.trim();
     if (!normalizedTranscript) {
       setManualSubmitError(
-        "Paste transcript or MoM details before generating.",
+        "Paste a transcript before generating.",
       );
       return;
     }
@@ -349,32 +350,104 @@ export function DocumentsPage() {
     return () => observer.disconnect();
   }, [loadMore, filteredDocuments.length]);
 
+  const docStats = useMemo(() => {
+    const total = documentEntries.length;
+    const thisWeek = documentEntries.filter((d) =>
+      getDateFilterMatch(d.date, "week"),
+    ).length;
+    const completed = documentEntries.filter(
+      (d) => d.status === "completed",
+    ).length;
+    const processing = documentEntries.filter(
+      (d) => d.status === "processing" || d.status === "in_progress",
+    ).length;
+    return [
+      {
+        label: "Total Documents",
+        value: total,
+        icon: (
+          <span className="material-symbols-rounded text-lg">description</span>
+        ),
+      },
+      {
+        label: "This Week",
+        value: thisWeek,
+        icon: (
+          <span className="material-symbols-rounded text-lg">date_range</span>
+        ),
+      },
+      {
+        label: "Completed",
+        value: completed,
+        icon: (
+          <span className="material-symbols-rounded text-lg">task_alt</span>
+        ),
+      },
+      {
+        label: "Processing",
+        value: processing,
+        icon: (
+          <span className="material-symbols-rounded text-lg">sync</span>
+        ),
+      },
+    ];
+  }, [documentEntries]);
+
   return (
-    <section className="space-y-6">
+    <section className="max-w-5xl mx-auto space-y-6">
+      {/* Page Header */}
       <PageHeader
         title="Documents"
-        subtitle={`${filteredDocuments.length} auto-generated summaries and transcripts`}
+        subtitle="Auto-generated summaries and transcripts from your meetings."
         actions={
-          <>
+          <Button variant="primary" size="md" onClick={onOpenCreateDialog}>
+            <span className="material-symbols-outlined text-base">add</span>
+            Add Transcript
+          </Button>
+        }
+      />
+
+      {/* Stat Cards */}
+      <section
+        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+        aria-label="Document summary"
+      >
+        {docStats.map((stat) => (
+          <StatCard
+            key={stat.label}
+            icon={stat.icon}
+            label={stat.label}
+            value={stat.value}
+          />
+        ))}
+      </section>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-gray-700">
+          <span className="font-semibold text-gray-900">
+            {filteredDocuments.length}
+          </span>{" "}
+          {filteredDocuments.length === 1
+            ? "document in view"
+            : "documents in view"}
+        </p>
+
+        <div className="flex items-center gap-2">
+          <Field label="Date Range">
             <Select
               value={dateFilter}
               onChange={(event) =>
                 setDateFilter(event.target.value as DateFilter)
               }
-              className="w-36"
             >
               <option value="all">All Dates</option>
               <option value="week">Last 7 Days</option>
               <option value="month">Last 30 Days</option>
             </Select>
-
-            <Button variant="primary" size="md" onClick={onOpenCreateDialog}>
-              <span className="material-symbols-outlined text-base">add</span>
-              Add
-            </Button>
-          </>
-        }
-      />
+          </Field>
+        </div>
+      </div>
 
       {error && (
         <div className="rounded-md border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700">
@@ -382,6 +455,7 @@ export function DocumentsPage() {
         </div>
       )}
 
+      {/* Document List */}
       {loading ? (
         <div className="space-y-3">
           <DocumentRowSkeleton />
@@ -390,14 +464,14 @@ export function DocumentsPage() {
           <DocumentRowSkeleton />
         </div>
       ) : filteredDocuments.length ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {visibleDocuments.map((entry, index) => {
             const tone = getDocumentTone(index);
             return (
               <Card
                 key={entry.id}
                 padding="none"
-                className="group flex items-center gap-4 px-4 py-3 hover:border-gray-300 transition-colors cursor-pointer"
+                className="group flex items-center gap-4 px-4 py-3 hover:bg-gray-50/50 transition-colors cursor-pointer"
                 onClick={() => navigate(`/documents/${entry.id}`)}
               >
                 <div
@@ -452,7 +526,7 @@ export function DocumentsPage() {
           }
           title="No documents for this filter"
           description="Try a different date range or capture a new meeting."
-          action={{ label: "Add Document", onClick: onOpenCreateDialog }}
+          action={{ label: "Add Transcript", onClick: onOpenCreateDialog }}
         />
       )}
 
@@ -465,7 +539,7 @@ export function DocumentsPage() {
       <Dialog
         open={isCreateDialogOpen}
         onClose={onCloseCreateDialog}
-        title="Add Manual Transcript or MoM"
+        title="Add Manual Transcript"
         description="Generate a document, Jira tasks, or both from your text."
         className="max-w-xl"
       >
@@ -495,7 +569,7 @@ export function DocumentsPage() {
           </Field>
 
           <Field
-            label="Manual Transcript or MoM"
+            label="Transcript"
             error={manualSubmitError ?? undefined}
           >
             <Textarea

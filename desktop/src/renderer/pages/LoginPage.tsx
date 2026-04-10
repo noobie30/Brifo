@@ -75,7 +75,7 @@ export function LoginPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 p-6">
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 w-full max-w-sm animate-fade-in">
+      <div className="bg-white rounded-lg border border-gray-200 p-10 w-full max-w-sm animate-fade-in">
         <div className="flex justify-center mb-6">
           <BrandLogo />
         </div>
@@ -91,9 +91,9 @@ export function LoginPage() {
           type="button"
           onClick={onGoogleSignIn}
           disabled={isLoading}
-          className="flex items-center justify-center gap-3 w-full h-11 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-xs"
+          className="flex items-center justify-center gap-3 w-full h-11 rounded-lg bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 active:bg-slate-950 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm hover:shadow-md"
         >
-          <span className="flex items-center justify-center h-6 w-6 rounded-full bg-accent-100 text-accent-700 text-xs font-bold">
+          <span className="flex items-center justify-center h-6 w-6 rounded-full bg-white/20 text-white text-xs font-bold">
             G
           </span>
           <span>{isLoading ? "Signing in..." : "Sign in with Google"}</span>

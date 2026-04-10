@@ -8,10 +8,14 @@ import {
   stopAutoCapture,
   subscribeAutoCapture,
 } from "../lib/auto-capture";
-import { generateNotes, getMeeting, getTranscript } from "../lib/api";
+import { generateNotes, getMeeting } from "../lib/api";
+import {
+  claimFinalization,
+  releaseFinalization,
+  waitForTranscriptStability,
+} from "../lib/finalize-capture";
 import { useAppStore } from "../store/app-store";
-import { TranscriptSegmentRecord } from "../types";
-import { Button } from "../components/ui";
+import { Button, Dialog } from "../components/ui";
 import { PermissionErrorBanner } from "../components/PermissionErrorBanner";
 
 const QUICK_NOTE_DRAFT_KEY = "brifo_quick_note_draft_v1";
@@ -31,7 +35,7 @@ export function QuickNotePage() {
   const [draft, setDraft] = useState(
     () => localStorage.getItem(QUICK_NOTE_DRAFT_KEY) ?? "",
   );
-  const [noteTitle, setNoteTitle] = useState("New note");
+  const [noteTitle, setNoteTitle] = useState("Quick Note");
   const [captureState, setCaptureState] = useState<AutoCaptureState | null>(
     getAutoCaptureState(),
   );
@@ -41,6 +45,7 @@ export function QuickNotePage() {
     "idle" | "transcribing" | "generating"
   >("idle");
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const loadDashboard = useAppStore((state) => state.loadDashboard);
   const meetingIdRef = useRef<string>("");
   const autoStartAttemptedRef = useRef(false);
@@ -48,17 +53,15 @@ export function QuickNotePage() {
     const signal = queryParams.get("signal")?.trim();
     meetingIdRef.current = signal
       ? `detected:${signal}`
-      : `quick-note:${Date.now()}`;
+      : `quick-note:${crypto.randomUUID()}`;
   }
   const quickNoteMeetingId = meetingIdRef.current;
   const resolvedQuickNoteTitle = noteTitle.trim() || formatQuickNoteTitle();
-  const autoStartEnabled = queryParams.get("autoStart") !== "0";
+  const autoStartEnabled = queryParams.get("autoStart") === "1";
   const sourceApp = queryParams.get("source")?.trim() || "Brifo Quick Note";
   const linkedMeetingId = queryParams.get("meetingId")?.trim();
   const signalKey = queryParams.get("signal")?.trim();
-  const autoGenerateQuery = queryParams.get("autoGenerate");
-  const shouldAutoGenerateAfterStop =
-    autoGenerateQuery === "1" || Boolean(signalKey) || Boolean(linkedMeetingId);
+  const shouldAutoGenerateAfterStop = true;
 
   useEffect(() => {
     localStorage.setItem(QUICK_NOTE_DRAFT_KEY, draft);
@@ -81,14 +84,20 @@ export function QuickNotePage() {
       title: resolvedQuickNoteTitle,
       trigger: "join",
       sourceApp,
-    }).catch((captureError) => {
-      setIsPermissionError(captureError instanceof PermissionError);
-      setError(
-        captureError instanceof Error
-          ? captureError.message
-          : "Unable to start listening session.",
-      );
-    });
+    })
+      .then((state) => {
+        if (state?.meetingId && state.meetingId !== meetingIdRef.current) {
+          meetingIdRef.current = state.meetingId;
+        }
+      })
+      .catch((captureError) => {
+        setIsPermissionError(captureError instanceof PermissionError);
+        setError(
+          captureError instanceof Error
+            ? captureError.message
+            : "Unable to start capturing session.",
+        );
+      });
   }, [autoStartEnabled, quickNoteMeetingId, resolvedQuickNoteTitle, sourceApp]);
 
   async function onToggleCapture() {
@@ -105,12 +114,16 @@ export function QuickNotePage() {
         return;
       }
 
-      await startAutoCapture({
+      const state = await startAutoCapture({
         meetingId: quickNoteMeetingId,
         title: resolvedQuickNoteTitle,
         trigger: "join",
         sourceApp,
       });
+      // Server may assign a different meetingId — sync it
+      if (state?.meetingId && state.meetingId !== meetingIdRef.current) {
+        meetingIdRef.current = state.meetingId;
+      }
       setStatusText(null);
       setError(null);
       setIsPermissionError(false);
@@ -126,6 +139,11 @@ export function QuickNotePage() {
   }
 
   async function finalizeTranscriptAndNotes(autoGenerate: boolean) {
+    // Claim this meetingId so BackgroundFinalizer skips it
+    if (!claimFinalization(quickNoteMeetingId)) {
+      return;
+    }
+
     try {
       const transcript = await waitForTranscriptStability(quickNoteMeetingId);
       if (!transcript.length) {
@@ -194,44 +212,8 @@ export function QuickNotePage() {
           ? finalizeError.message
           : "Stopped capture, but could not finish transcript and note generation.",
       );
-    }
-  }
-
-  async function onGenerateDocumentAndTasks() {
-    try {
-      if (finalizePhase !== "idle") {
-        return;
-      }
-
-      const normalizedDraft = draft.trim();
-      if (!normalizedDraft) {
-        setError("Add some notes first, then generate document and tasks.");
-        return;
-      }
-
-      setStatusText(null);
-      setError(null);
-      setFinalizePhase("generating");
-      const generated = await generateNotes(quickNoteMeetingId, {
-        meetingTitle: resolvedQuickNoteTitle,
-        rawUserNotes: normalizedDraft,
-        templateUsed: "general",
-      });
-      await loadDashboard();
-      setFinalizePhase("idle");
-      setStatusText(
-        generated.actionItems.length > 0
-          ? "Document and Jira tickets generated."
-          : "Document generated.",
-      );
-    } catch (generationError) {
-      setFinalizePhase("idle");
-      setStatusText(null);
-      setError(
-        generationError instanceof Error
-          ? generationError.message
-          : "Could not generate document and tasks.",
-      );
+    } finally {
+      releaseFinalization(quickNoteMeetingId);
     }
   }
 
@@ -246,7 +228,7 @@ export function QuickNotePage() {
     } finally {
       setFinalizePhase("idle");
       setDraft("");
-      setNoteTitle("New note");
+      setNoteTitle("Quick Note");
       setStatusText("Note cleared.");
       setError(null);
       localStorage.removeItem(QUICK_NOTE_DRAFT_KEY);
@@ -259,8 +241,8 @@ export function QuickNotePage() {
       : finalizePhase === "transcribing" || captureState?.status === "stopping"
         ? "Transcribing..."
         : captureState
-          ? "Listening..."
-          : "Start listening";
+          ? "Capturing..."
+          : "Start";
 
   const captureIcon =
     finalizePhase === "generating"
@@ -277,13 +259,13 @@ export function QuickNotePage() {
     captureState?.status === "stopping"
       ? "bg-warning-500 hover:bg-warning-600 text-white"
       : captureState
-        ? "bg-accent-600 hover:bg-accent-700 text-white animate-pulse"
-        : "bg-gray-100 hover:bg-gray-200 text-gray-700";
+        ? "bg-slate-900 hover:bg-slate-800 text-white"
+        : "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300";
 
   return (
     <section className="flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="flex items-center px-4 py-3 border-b border-gray-200">
+      <div className="flex items-center px-6 py-2.5 border-b border-gray-100">
         <Button
           variant="ghost"
           size="sm"
@@ -295,31 +277,31 @@ export function QuickNotePage() {
       </div>
 
       {/* Editor shell */}
-      <article className="flex flex-col flex-1 min-h-0 px-6 py-4">
+      <article className="flex flex-col flex-1 min-h-0 px-8 py-5 max-w-3xl mx-auto w-full">
         <div className="flex items-center justify-between gap-4 mb-4">
           <input
-            className="flex-1 border-none text-xl font-semibold bg-transparent placeholder:text-gray-400 focus:outline-none"
+            className="flex-1 border-none text-lg font-semibold bg-transparent placeholder:text-gray-300 focus:outline-none tracking-tight"
             value={noteTitle}
             onChange={(event) => setNoteTitle(event.target.value)}
-            placeholder="New note"
+            placeholder="Quick Note"
             aria-label="Note title"
           />
           <div className="flex items-center gap-2">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => void onGenerateDocumentAndTasks()}
+            <button
+              type="button"
+              className={`inline-flex items-center gap-1.5 px-3 h-8 rounded text-sm font-medium transition-all duration-150 shadow-sm hover:shadow-md disabled:opacity-50 disabled:pointer-events-none ${captureBtnClass}`}
+              onClick={() => void onToggleCapture()}
               disabled={finalizePhase !== "idle"}
             >
               <span className="material-symbols-outlined text-base">
-                description
+                {captureIcon}
               </span>
-              Generate document &amp; tasks
-            </Button>
+              {captureLabel}
+            </button>
             <Button
               variant="dangerOutline"
               size="sm"
-              onClick={() => void onDeleteNote()}
+              onClick={() => setShowDeleteConfirm(true)}
               disabled={finalizePhase !== "idle"}
             >
               <span className="material-symbols-outlined text-base">
@@ -330,48 +312,51 @@ export function QuickNotePage() {
           </div>
         </div>
 
-        <textarea
-          className="flex-1 resize-none border-none focus:outline-none text-sm text-gray-800 leading-relaxed placeholder:text-gray-400 bg-transparent"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="Write notes..."
-          rows={16}
-        />
+        <div className="relative flex-1 min-h-0">
+          <textarea
+            className="h-full w-full resize-none border-none focus:outline-none text-base text-gray-800 leading-relaxed placeholder:text-gray-300 bg-transparent"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Write notes..."
+            rows={16}
+          />
+          {finalizePhase !== "idle" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/90 backdrop-blur-sm rounded-lg">
+              <svg
+                className="animate-spin h-6 w-6 text-accent-500"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+              <p className="text-sm text-gray-500">
+                {finalizePhase === "transcribing"
+                  ? "Processing transcript..."
+                  : "Generating document & tasks..."}
+              </p>
+            </div>
+          )}
+        </div>
       </article>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-200 px-6 py-3 bg-gray-50">
-        <p className="text-xs text-gray-400 mb-2">
-          Always get consent when transcribing others
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-sm font-medium transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none ${captureBtnClass}`}
-            onClick={() => void onToggleCapture()}
-            disabled={finalizePhase !== "idle"}
-          >
-            <span className="material-symbols-outlined text-base">
-              {captureIcon}
-            </span>
-            {captureLabel}
-          </button>
-          <input
-            className="flex-1 h-8 px-3 text-sm border border-gray-200 rounded-md bg-white text-gray-400 focus:outline-none cursor-default"
-            readOnly
-            value="Ask anything"
-          />
-          <Button variant="ghost" size="sm">
-            <span className="material-symbols-outlined text-base">
-              auto_awesome
-            </span>
-            Suggest topics
-          </Button>
+      {/* Status text */}
+      {statusText ? (
+        <div className="px-8 py-2 bg-gray-50/50 border-t border-gray-100">
+          <p className="text-xs text-success-600">{statusText}</p>
         </div>
-        {statusText ? (
-          <p className="mt-2 text-xs text-success-600">{statusText}</p>
-        ) : null}
-      </footer>
+      ) : null}
 
       {/* Error display */}
       {error && isPermissionError ? (
@@ -391,7 +376,7 @@ export function QuickNotePage() {
                 setError(
                   captureError instanceof Error
                     ? captureError.message
-                    : "Unable to start listening session.",
+                    : "Unable to start capturing session.",
                 );
               });
             }}
@@ -406,47 +391,34 @@ export function QuickNotePage() {
           {error}
         </div>
       ) : null}
+
+      <Dialog
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Delete note?"
+        description="This will stop any active capture and clear your notes. This action cannot be undone."
+      >
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              setShowDeleteConfirm(false);
+              void onDeleteNote();
+            }}
+          >
+            Delete
+          </Button>
+        </div>
+      </Dialog>
     </section>
   );
 }
 
-async function waitForTranscriptStability(
-  meetingId: string,
-): Promise<TranscriptSegmentRecord[]> {
-  const maxAttempts = 80;
-  const waitMs = 3000;
-
-  let lastCount = -1;
-  let stableTicks = 0;
-  let lastTranscript: TranscriptSegmentRecord[] = [];
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    let segments: TranscriptSegmentRecord[] = [];
-    try {
-      segments = await getTranscript(meetingId);
-    } catch {
-      segments = [];
-    }
-    const count = segments.length;
-    if (count > 0) {
-      lastTranscript = segments;
-    }
-
-    if (count > 0) {
-      if (count === lastCount) {
-        stableTicks += 1;
-      } else {
-        stableTicks = 0;
-      }
-
-      if (stableTicks >= 2) {
-        return segments;
-      }
-    }
-
-    lastCount = count;
-    await new Promise((resolve) => window.setTimeout(resolve, waitMs));
-  }
-
-  return lastTranscript;
-}

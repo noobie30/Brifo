@@ -3,12 +3,14 @@ import brifoLogoMark from "../assets/brifo-logo-mark.png";
 interface BrandLogoProps {
   compact?: boolean;
   showSubtitle?: boolean;
+  dark?: boolean;
   className?: string;
 }
 
 export function BrandLogo({
   compact = false,
   showSubtitle = false,
+  dark = false,
   className = "",
 }: BrandLogoProps) {
   return (
@@ -19,7 +21,7 @@ export function BrandLogo({
           alt="Brifo logo mark"
           className={compact ? "h-6 w-6" : "h-7 w-7"}
         />
-        <span className="text-lg font-bold text-gray-900 tracking-tight">
+        <span className={`text-lg font-bold tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
           Brifo
         </span>
       </div>

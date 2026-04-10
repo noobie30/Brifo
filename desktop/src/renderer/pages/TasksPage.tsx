@@ -474,7 +474,7 @@ export function TasksPage() {
             >
               add
             </span>
-            Add
+            Generate from Transcript
           </Button>
         }
       />
@@ -551,7 +551,7 @@ export function TasksPage() {
             <Card
               key={ticket._id}
               padding="none"
-              className="group cursor-pointer transition-shadow hover:shadow-md"
+              className="group cursor-pointer transition-colors hover:bg-gray-50/50"
               role="button"
               tabIndex={0}
               onClick={() => navigate(`/tasks/${ticket._id}`)}
@@ -716,7 +716,7 @@ export function TasksPage() {
       <Dialog
         open={isCreateDialogOpen}
         onClose={onCloseCreateDialog}
-        title="Add Manual Transcript or MoM"
+        title="Generate from Transcript"
         description="Generate tasks, a document, or both from your text."
       >
         <div className="space-y-4">

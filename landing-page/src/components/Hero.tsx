@@ -11,7 +11,7 @@ export function Hero() {
         </h1>
         <p className="mx-auto mb-9 max-w-lg text-lg leading-relaxed text-gray-500">
           Brifo listens to your meetings and writes up the notes so you don't
-          have to. No bot joins the call. Nothing to install in your browser.
+          have to. No bot joins the call.
         </p>
         <a
           href={downloadUrl}

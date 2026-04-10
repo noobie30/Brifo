@@ -1,0 +1,22 @@
+# Brifo - AI Meeting Notes
+# https://brifo.in
+
+User-agent: *
+Allow: /
+Sitemap: https://brifo.in/sitemap.xml
+
+# AI Crawlers - explicitly allowed
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /

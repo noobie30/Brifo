@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import {
+  getAutoCaptureState,
+  startAutoCapture,
+} from "../lib/auto-capture";
 import { Button } from "./ui";
 
 const AUTO_DISMISS_MS = 30_000;
@@ -15,6 +19,8 @@ export function MeetingDetectedBanner() {
   const location = useLocation();
   const [payload, setPayload] = useState<BannerPayload | null>(null);
   const [visible, setVisible] = useState(false);
+  const [captureStarted, setCaptureStarted] = useState(false);
+  const [captureError, setCaptureError] = useState<string | null>(null);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -32,16 +38,17 @@ export function MeetingDetectedBanner() {
   const dismiss = useCallback(() => {
     setVisible(false);
     clearTimers();
-    // Clear payload after exit animation completes
     animationTimerRef.current = setTimeout(() => {
       setPayload(null);
+      setCaptureStarted(false);
+      setCaptureError(null);
       animationTimerRef.current = null;
     }, ANIMATION_MS);
   }, [clearTimers]);
 
-  const handleTakeNotes = useCallback(() => {
+  const handleViewNotes = useCallback(() => {
     if (!payload) return;
-    const query = new URLSearchParams({ autoStart: "1" });
+    const query = new URLSearchParams();
     const sourceApp = payload.sourceApp?.trim();
     if (sourceApp) query.set("source", sourceApp);
     if (payload.signalKey?.trim())
@@ -50,22 +57,47 @@ export function MeetingDetectedBanner() {
     navigate(`/quick-note?${query.toString()}`);
   }, [payload, navigate, dismiss]);
 
-  // Subscribe to IPC banner events
+  // Subscribe to IPC banner events and auto-start capture
   useEffect(() => {
     if (!window.electronAPI?.onMeetingDetectedBanner) return;
 
     const unsubscribe = window.electronAPI.onMeetingDetectedBanner((data) => {
-      // Cancel any pending animation cleanup from a previous banner
       clearTimers();
 
-      setPayload({
-        sourceApp: data?.sourceApp?.trim() || "Meeting App",
-        signalKey: data?.signalKey?.trim() || "",
-      });
+      const sourceApp = data?.sourceApp?.trim() || "Meeting App";
+      const signalKey = data?.signalKey?.trim() || "";
+
+      setPayload({ sourceApp, signalKey });
+      setCaptureError(null);
       setVisible(true);
 
       // Auto-dismiss after timeout
       dismissTimerRef.current = setTimeout(dismiss, AUTO_DISMISS_MS);
+
+      // Auto-start capture if not already active
+      if (getAutoCaptureState()) {
+        setCaptureStarted(true);
+        return;
+      }
+
+      const meetingId = signalKey ? `detected:${signalKey}` : `detected:${Date.now()}`;
+      void startAutoCapture({
+        meetingId,
+        title: `${sourceApp} Meeting`,
+        trigger: "join",
+        sourceApp,
+      })
+        .then(() => {
+          setCaptureStarted(true);
+        })
+        .catch((error) => {
+          setCaptureStarted(false);
+          setCaptureError(
+            error instanceof Error
+              ? error.message
+              : "Unable to start capturing.",
+          );
+        });
     });
 
     return () => {
@@ -74,7 +106,7 @@ export function MeetingDetectedBanner() {
     };
   }, [dismiss, clearTimers]);
 
-  // Auto-dismiss when navigating to quick-note (user may have clicked macOS notification)
+  // Auto-dismiss when navigating to quick-note
   useEffect(() => {
     if (location.pathname.startsWith("/quick-note") && visible) {
       dismiss();
@@ -94,24 +126,72 @@ export function MeetingDetectedBanner() {
         }}
       >
         {/* Meeting icon */}
-        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-accent-100 text-accent-600 shrink-0">
-          <span className="material-symbols-outlined text-lg">videocam</span>
+        <div
+          className={`flex items-center justify-center w-8 h-8 rounded-full shrink-0 ${
+            captureStarted
+              ? "bg-success-100 text-success-600"
+              : captureError
+                ? "bg-error-100 text-error-600"
+                : "bg-accent-100 text-accent-600"
+          }`}
+        >
+          <span className="material-symbols-outlined text-lg">
+            {captureStarted ? "mic" : captureError ? "error" : "videocam"}
+          </span>
         </div>
 
         {/* Text */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-800 truncate">
-            Meeting detected in {payload.sourceApp || "Meeting App"}
+            {captureStarted
+              ? `Capturing ${payload.sourceApp || "Meeting"}`
+              : captureError
+                ? "Capture failed"
+                : `Meeting detected in ${payload.sourceApp || "Meeting App"}`}
           </p>
           <p className="text-xs text-gray-500">
-            Click Take Notes to start capturing
+            {captureStarted
+              ? "Notes will be generated when the meeting ends"
+              : captureError
+                ? captureError
+                : "Starting capture..."}
           </p>
         </div>
 
-        {/* Take Notes button */}
-        <Button variant="primary" size="sm" onClick={handleTakeNotes}>
-          Take Notes
-        </Button>
+        {/* Action button */}
+        {captureStarted ? (
+          <Button variant="primary" size="sm" onClick={handleViewNotes}>
+            View Notes
+          </Button>
+        ) : captureError ? (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              setCaptureError(null);
+              const signalKey = payload.signalKey?.trim() || "";
+              const meetingId = signalKey
+                ? `detected:${signalKey}`
+                : `detected:${Date.now()}`;
+              void startAutoCapture({
+                meetingId,
+                title: `${payload.sourceApp || "Meeting"} Meeting`,
+                trigger: "join",
+                sourceApp: payload.sourceApp || "Meeting App",
+              })
+                .then(() => setCaptureStarted(true))
+                .catch((err) =>
+                  setCaptureError(
+                    err instanceof Error
+                      ? err.message
+                      : "Unable to start capturing.",
+                  ),
+                );
+            }}
+          >
+            Retry
+          </Button>
+        ) : null}
 
         {/* Dismiss button */}
         <button

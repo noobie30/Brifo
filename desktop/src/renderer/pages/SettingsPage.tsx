@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Field, Card, Select, Skeleton } from "../components/ui";
+import { Button, Field, Card, Input, Skeleton } from "../components/ui";
 import {
   connectJiraIntegration,
   disconnectJiraIntegration,
   getJiraIntegration,
-  getJiraProjects,
-  getJiraSprints,
   JiraIntegrationRecord,
-  JiraProject,
-  JiraSprint,
   updateJiraDefaults,
 } from "../lib/api";
 
@@ -22,59 +18,17 @@ export function SettingsPage() {
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [jiraSuccess, setJiraSuccess] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [jiraProjects, setJiraProjects] = useState<JiraProject[]>([]);
-  const [jiraSprints, setJiraSprints] = useState<JiraSprint[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(false);
-  const [sprintsLoading, setSprintsLoading] = useState(false);
-
-  const loadJiraProjectsList = useCallback(async () => {
-    setProjectsLoading(true);
-    try {
-      const projects = await getJiraProjects();
-      setJiraProjects(projects);
-    } catch {
-      setJiraProjects([]);
-    } finally {
-      setProjectsLoading(false);
-    }
-  }, []);
-
-  const loadJiraSprintsList = useCallback(async (projectId: string) => {
-    if (!projectId) {
-      setJiraSprints([]);
-      return;
-    }
-    setSprintsLoading(true);
-    try {
-      const sprints = await getJiraSprints(projectId);
-      setJiraSprints(sprints);
-    } catch {
-      setJiraSprints([]);
-    } finally {
-      setSprintsLoading(false);
-    }
-  }, []);
 
   const loadJiraIntegration = useCallback(async () => {
     const integration = await getJiraIntegration();
     setJiraIntegration(integration);
     setJiraProjectIdInput(integration.defaultProjectId || "");
     setJiraSprintIdInput(integration.defaultSprintId || "");
-    return integration;
   }, []);
 
   useEffect(() => {
     setInitialLoading(true);
     void loadJiraIntegration()
-      .then((integration) => {
-        if (integration?.connected) {
-          void loadJiraProjectsList().then(() => {
-            if (integration.defaultProjectId) {
-              void loadJiraSprintsList(integration.defaultProjectId);
-            }
-          });
-        }
-      })
       .catch((error) => {
         setJiraError(
           error instanceof Error
@@ -86,7 +40,7 @@ export function SettingsPage() {
         setJiraLoading(false);
         setInitialLoading(false);
       });
-  }, [loadJiraIntegration, loadJiraProjectsList, loadJiraSprintsList]);
+  }, [loadJiraIntegration]);
 
   async function onConnectJira() {
     setJiraError(null);
@@ -143,6 +97,28 @@ export function SettingsPage() {
     }
   }
 
+  async function onSaveJiraDefaults() {
+    setJiraError(null);
+    setJiraSuccess(null);
+    setJiraDefaultsSaving(true);
+    try {
+      await updateJiraDefaults({
+        projectId: jiraProjectIdInput.trim(),
+        sprintId: jiraSprintIdInput.trim(),
+      });
+      await loadJiraIntegration();
+      setJiraSuccess("Jira defaults saved.");
+    } catch (error) {
+      setJiraError(
+        error instanceof Error
+          ? error.message
+          : "Unable to save Jira defaults.",
+      );
+    } finally {
+      setJiraDefaultsSaving(false);
+    }
+  }
+
   async function onDisconnectJira() {
     setJiraError(null);
     setJiraSuccess(null);
@@ -182,95 +158,60 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="max-w-xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Manage your integrations and preferences.
+        </p>
+      </div>
+
       <Card padding="lg">
         <div className="flex items-center gap-2.5 mb-6">
-          <span
-            className="material-symbols-rounded text-gray-400 text-xl"
-            aria-hidden
-          >
-            settings
-          </span>
-          <h3 className="text-base font-semibold text-gray-900">
-            Jira Integration
-          </h3>
+          <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-slate-100">
+            <span
+              className="material-symbols-rounded text-slate-600 text-lg"
+              aria-hidden
+            >
+              integration_instructions
+            </span>
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">
+              Jira Integration
+            </h3>
+            <p className="text-xs text-gray-400">
+              {jiraConnected
+                ? `Connected to ${jiraIntegration?.siteName || "Jira"}`
+                : "Connect Jira to create tickets from meeting tasks"}
+            </p>
+          </div>
         </div>
 
         {jiraConnected && (
           <div className="space-y-4 mb-6">
             <Field
-              label="Default Jira Project"
+              label="Default Jira Project ID"
               hint="Used when approving tasks to Jira."
             >
-              <Select
+              <Input
                 value={jiraProjectIdInput}
-                onChange={(event) => {
-                  const projectId = event.target.value;
-                  setJiraProjectIdInput(projectId);
-                  setJiraSprintIdInput("");
-                  setJiraSprints([]);
-                  if (projectId) {
-                    void loadJiraSprintsList(projectId);
-                    void updateJiraDefaults({
-                      projectId,
-                      sprintId: "",
-                    }).then(() => loadJiraIntegration());
-                  }
-                }}
-                disabled={jiraLoading || jiraDefaultsSaving || projectsLoading}
-              >
-                <option value="">
-                  {projectsLoading
-                    ? "Loading projects..."
-                    : "Select a project"}
-                </option>
-                {jiraProjects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.key} - {p.name}
-                  </option>
-                ))}
-              </Select>
+                onChange={(event) => setJiraProjectIdInput(event.target.value)}
+                placeholder="e.g. 10001"
+                disabled={jiraLoading || jiraDefaultsSaving}
+              />
             </Field>
 
             <Field
-              label="Default Jira Sprint"
+              label="Default Jira Sprint ID"
               hint="If set, approved Jira issues will also be added to this sprint automatically."
             >
-              <Select
+              <Input
                 value={jiraSprintIdInput}
-                onChange={(event) => {
-                  const sprintId = event.target.value;
-                  setJiraSprintIdInput(sprintId);
-                  void updateJiraDefaults({
-                    projectId: jiraProjectIdInput,
-                    sprintId,
-                  }).then(() => {
-                    setJiraSuccess("Jira defaults saved.");
-                    void loadJiraIntegration();
-                  });
-                }}
-                disabled={
-                  jiraLoading ||
-                  jiraDefaultsSaving ||
-                  sprintsLoading ||
-                  !jiraProjectIdInput
-                }
-              >
-                <option value="">
-                  {sprintsLoading
-                    ? "Loading sprints..."
-                    : !jiraProjectIdInput
-                      ? "Select a project first"
-                      : jiraSprints.length === 0
-                        ? "No sprints available"
-                        : "Select a sprint"}
-                </option>
-                {jiraSprints.map((s) => (
-                  <option key={s.id} value={String(s.id)}>
-                    {s.name} ({s.state})
-                  </option>
-                ))}
-              </Select>
+                onChange={(event) => setJiraSprintIdInput(event.target.value)}
+                placeholder="e.g. 42"
+                disabled={jiraLoading || jiraDefaultsSaving}
+              />
             </Field>
           </div>
         )}
@@ -284,6 +225,16 @@ export function SettingsPage() {
           >
             {jiraConnected ? "Reconnect Jira" : "Connect Jira"}
           </Button>
+          {jiraConnected && (
+            <Button
+              variant="secondary"
+              onClick={() => void onSaveJiraDefaults()}
+              disabled={jiraLoading || jiraDefaultsSaving}
+              loading={jiraDefaultsSaving}
+            >
+              Save Jira Defaults
+            </Button>
+          )}
           {jiraConnected && (
             <Button
               variant="dangerOutline"

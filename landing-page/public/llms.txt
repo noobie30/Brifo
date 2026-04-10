@@ -1,0 +1,29 @@
+# Brifo
+
+> AI-powered meeting notes for Mac — no bots, no browser extensions.
+
+Brifo is a macOS desktop application that automatically captures your meetings and generates intelligent notes. It listens to system audio during calls on any platform (Zoom, Google Meet, Teams, etc.) and produces structured meeting summaries, action items, and follow-up emails — all without a bot joining your call.
+
+## Key Features
+
+- **Auto-Detection**: Automatically detects when a meeting starts and begins capturing
+- **AI-Powered Notes**: Generates structured meeting summaries with key decisions, action items, and follow-ups
+- **No Bot Required**: Captures system audio locally — no awkward bot joins your call
+- **Jira Integration**: Automatically creates Jira tickets from extracted action items
+- **Google Calendar Sync**: Connects to your calendar to match meetings with scheduled events
+- **Meeting Chat**: Ask questions about any past meeting and get AI-powered answers
+- **Privacy First**: Audio is processed locally and never stored — only transcripts are sent to the cloud
+
+## Technical Details
+
+- **Platform**: macOS (Apple Silicon)
+- **Architecture**: Electron desktop app + NestJS cloud backend
+- **AI**: OpenAI GPT-4.1 for note generation and action item extraction
+- **Database**: MongoDB
+- **Price**: Free
+
+## Links
+
+- Website: https://brifo.in
+- Download: https://brifo.in (click "Download for Mac")
+- API: https://api.brifo.in

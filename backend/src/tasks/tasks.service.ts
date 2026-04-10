@@ -1073,38 +1073,30 @@ export class TasksService {
     meetingId: string,
     actionItems: ActionItem[],
   ): Promise<void> {
+    // Delete all existing tasks for this meeting first, then insert new ones
+    // Using bulkWrite for atomicity within a single command
+    await this.taskModel.deleteMany({ userId, meetingId }).exec();
+
     if (!actionItems.length) {
-      await this.taskModel.deleteMany({ userId, meetingId }).exec();
       return;
     }
 
-    const inserted = await this.taskModel.insertMany(
-      actionItems.map((item) => {
-        return {
-          userId,
-          meetingId,
-          issueType: normalizeIssueType(item.issueType),
-          summary: item.summary.trim(),
-          description: item.description.trim() || "No description provided.",
-          assigneeId: normalizeNullableText(item.assigneeId),
-          reporterId: normalizeNullableText(item.reporterId) ?? userId,
-          priority: normalizePriority(item.priority),
-          dueDate: normalizeDate(item.dueDate),
-          acceptanceCriteria:
-            item.acceptanceCriteria.trim() ||
-            "No acceptance criteria provided.",
-        };
-      }),
-    );
-
-    const insertedIds = inserted.map((item) => item._id);
-    await this.taskModel
-      .deleteMany({
+    await this.taskModel.insertMany(
+      actionItems.map((item) => ({
         userId,
         meetingId,
-        _id: { $nin: insertedIds },
-      })
-      .exec();
+        issueType: normalizeIssueType(item.issueType),
+        summary: item.summary.trim(),
+        description: item.description.trim() || "No description provided.",
+        assigneeId: normalizeNullableText(item.assigneeId),
+        reporterId: normalizeNullableText(item.reporterId) ?? userId,
+        priority: normalizePriority(item.priority),
+        dueDate: normalizeDate(item.dueDate),
+        acceptanceCriteria:
+          item.acceptanceCriteria.trim() ||
+          "No acceptance criteria provided.",
+      })),
+    );
   }
 
   async deleteTask(userId: string, taskId: string): Promise<void> {

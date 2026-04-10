@@ -8,6 +8,10 @@ import {
 import { Note, NoteDocument } from "../notes/schemas/note.schema";
 import { Task, TaskDocument } from "../tasks/schemas/task.schema";
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 @Injectable()
 export class SearchService {
   constructor(
@@ -18,7 +22,11 @@ export class SearchService {
   ) {}
 
   async search(userId: string, query: string) {
-    const regex = new RegExp(query, "i");
+    const sanitized = query.trim().slice(0, 200);
+    if (!sanitized) {
+      return { meetings: [], transcriptHits: [], notes: [], tasks: [] };
+    }
+    const regex = new RegExp(escapeRegex(sanitized), "i");
 
     const [transcriptHits, notes, tasks] = await Promise.all([
       this.transcriptModel

@@ -59,8 +59,8 @@ export class SpeakerResolutionService {
       return heuristicMap;
     }
 
-    // Tier 2: AI-assisted mapping
-    if (this.aiConfigured && input.attendees.length > 0) {
+    // Tier 2: AI-assisted mapping (works with or without attendees list)
+    if (this.aiConfigured) {
       try {
         const aiMap = await this.resolveByAi(
           input.segments,

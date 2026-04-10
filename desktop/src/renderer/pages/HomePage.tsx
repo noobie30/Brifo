@@ -35,6 +35,7 @@ function buildEventDedupeKey(event: {
 export function HomePage() {
   const navigate = useNavigate();
   const tasks = useAppStore((state) => state.tasks);
+  const meetings = useAppStore((state) => state.meetings);
   const upcomingEvents = useAppStore((state) => state.upcomingEvents);
   const loadDashboard = useAppStore((state) => state.loadDashboard);
   const [error, setError] = useState<string | null>(null);
@@ -66,14 +67,21 @@ export function HomePage() {
       const date = new Date(event.startTime);
       return date.toDateString() === new Date().toDateString();
     }).length;
-    const estimatedSavedHours = Math.max(1.2, todaysCount * 0.8);
+
+    // Time saved: each completed meeting where Brifo generated notes saves ~20 min
+    const completedCount = meetings.filter(
+      (m) => m.status === "completed" || m.status === "processing",
+    ).length;
+    const savedMinutes = completedCount * 20;
+    const savedHours = savedMinutes / 60;
 
     return {
       openTasks,
       completedMeetings: todaysCount,
-      estimatedSavedHours: estimatedSavedHours.toFixed(1),
+      estimatedSavedHours:
+        savedHours >= 1 ? `${savedHours.toFixed(1)}h` : `${savedMinutes}m`,
     };
-  }, [tasks, dedupedUpcomingEvents]);
+  }, [tasks, dedupedUpcomingEvents, meetings]);
 
   const todaysMeetings = useMemo(() => {
     const now = Date.now();
@@ -109,7 +117,7 @@ export function HomePage() {
   }, [dedupedUpcomingEvents]);
 
   function onQuickNote() {
-    navigate("/quick-note?autoStart=1&source=Dashboard");
+    navigate("/quick-note");
   }
 
   async function onMeetingAction(item: DashboardMeeting) {
@@ -122,9 +130,17 @@ export function HomePage() {
         endTime: item.endTime ?? null,
         joinUrl: item.joinUrl,
       });
-      await window.electronAPI.openExternal(item.joinUrl);
       setError(null);
       setIsPermissionError(false);
+      // Open meeting link in browser and navigate to Quick Note
+      void window.electronAPI.openExternal(item.joinUrl);
+      const query = new URLSearchParams({
+        autoStart: "1",
+        source: item.title,
+        meetingId: item.id,
+      });
+      if (item.endTime) query.set("endTime", item.endTime);
+      navigate(`/quick-note?${query.toString()}`);
     } catch (openError) {
       setIsPermissionError(openError instanceof PermissionError);
       setError(
@@ -209,7 +225,7 @@ export function HomePage() {
             <span className="material-symbols-rounded text-lg">schedule</span>
           }
           label="Time Saved"
-          value={`${stats.estimatedSavedHours}h`}
+          value={stats.estimatedSavedHours}
         />
       </div>
 
@@ -226,7 +242,7 @@ export function HomePage() {
           <span className="material-symbols-rounded text-base" aria-hidden>
             add
           </span>
-          Add Note
+          Quick Note
         </Button>
       </Card>
 
@@ -256,14 +272,14 @@ export function HomePage() {
                   className="flex items-center justify-between px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex flex-col items-center justify-center h-12 w-16 rounded-lg bg-accent-50 text-accent-700">
+                    <div className="flex flex-col items-center justify-center h-12 w-16 rounded-lg bg-slate-100 text-slate-800">
                       <span className="text-sm font-semibold leading-tight">
                         {meetingTime.toLocaleTimeString([], {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
                       </span>
-                      <span className="text-[10px] text-accent-500 uppercase">
+                      <span className="text-xs text-slate-500 uppercase">
                         {meetingTime.toLocaleDateString([], {
                           weekday: "short",
                         })}

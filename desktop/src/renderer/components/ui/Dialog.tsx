@@ -53,10 +53,10 @@ export function Dialog({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="fixed inset-0 bg-black/40 animate-fade-in" />
+      <div className="fixed inset-0 bg-black/30 animate-fade-in" />
       <div
         ref={panelRef}
-        className={`relative z-10 bg-white rounded-xl shadow-lg w-full max-w-lg animate-slide-up ${className}`}
+        className={`relative z-10 bg-white rounded-lg border border-gray-200 shadow-md w-full max-w-lg animate-slide-up ${className}`}
       >
         {title && (
           <div className="px-6 pt-5 pb-0">

@@ -15,6 +15,7 @@ import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { AuthenticatedUser } from "../common/types/authenticated-user.type";
 import { TranscriptsService } from "./transcripts.service";
+import { DeepgramStreamingService } from "./deepgram-streaming.service";
 import { UpsertTranscriptDto } from "./dto/upsert-transcript.dto";
 
 @ApiTags("transcripts")
@@ -22,7 +23,10 @@ import { UpsertTranscriptDto } from "./dto/upsert-transcript.dto";
 @UseGuards(JwtAuthGuard)
 @Controller("meetings/:meetingId/transcript")
 export class TranscriptsController {
-  constructor(private readonly transcriptsService: TranscriptsService) {}
+  constructor(
+    private readonly transcriptsService: TranscriptsService,
+    private readonly deepgramStreamingService: DeepgramStreamingService,
+  ) {}
 
   @Post("segments")
   appendSegments(
@@ -46,7 +50,9 @@ export class TranscriptsController {
   }
 
   @Post("auto/chunk")
-  @UseInterceptors(FileInterceptor("audio"))
+  @UseInterceptors(
+    FileInterceptor("audio", { limits: { fileSize: 10 * 1024 * 1024 } }),
+  )
   async appendAutoChunk(
     @CurrentUser() user: AuthenticatedUser,
     @Param("meetingId") meetingId: string,
@@ -70,5 +76,50 @@ export class TranscriptsController {
     });
 
     return { accepted: true };
+  }
+
+  @Post("stream/start")
+  async startStream(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("meetingId") meetingId: string,
+  ) {
+    return this.deepgramStreamingService.startSession(
+      user.userId,
+      meetingId.trim(),
+    );
+  }
+
+  @Post("stream/audio")
+  @UseInterceptors(
+    FileInterceptor("audio", { limits: { fileSize: 1 * 1024 * 1024 } }),
+  )
+  async streamAudio(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("meetingId") meetingId: string,
+    @UploadedFile() file: { buffer: Buffer } | undefined,
+  ) {
+    if (!file?.buffer?.length) {
+      return { accepted: false };
+    }
+    // sendAudio auto-recovers if the Deepgram session was lost to a
+    // Vercel instance recycle, so this no longer throws 410 Gone.
+    const sent = await this.deepgramStreamingService.sendAudio(
+      user.userId,
+      meetingId.trim(),
+      file.buffer,
+    );
+    return { accepted: sent };
+  }
+
+  @Post("stream/stop")
+  async stopStream(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("meetingId") meetingId: string,
+  ) {
+    await this.deepgramStreamingService.stopSession(
+      user.userId,
+      meetingId.trim(),
+    );
+    return { stopped: true };
   }
 }

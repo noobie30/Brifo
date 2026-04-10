@@ -14,7 +14,7 @@
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
     "dmg": "npm run build && electron-builder --mac dmg --publish never",
-    "dmg:unsigned": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --publish never",
+    "dmg:unsigned": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --publish never && codesign --deep --force --sign - release/mac-arm64/Brifo.app",
     "pack:dir": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --publish never",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
     "lint": "npm run typecheck",

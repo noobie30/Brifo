@@ -54,11 +54,6 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
 
       <Route element={<ProtectedLayout />}>
-        <Route path="/chat" element={<Navigate to="/documents" replace />} />
-        <Route
-          path="/chat/:meetingId"
-          element={<Navigate to="/documents" replace />}
-        />
         <Route path="/history" element={<Navigate to="/documents" replace />} />
 
         <Route path="/home" element={<HomePage />} />

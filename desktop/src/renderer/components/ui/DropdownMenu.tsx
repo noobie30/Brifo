@@ -37,7 +37,7 @@ export function DropdownMenu({
       <div onClick={() => setOpen(!open)}>{trigger}</div>
       {open && (
         <div
-          className={`absolute top-full mt-1 z-40 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-md animate-fade-in ${
+          className={`absolute top-full mt-1 z-40 min-w-[160px] rounded border border-gray-200 bg-white py-1 shadow-sm animate-fade-in ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
@@ -45,7 +45,7 @@ export function DropdownMenu({
             <button
               key={index}
               type="button"
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors cursor-pointer ${
+              className={`flex w-full items-center gap-2 px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                 item.variant === "danger"
                   ? "text-error-600 hover:bg-error-50"
                   : "text-gray-700 hover:bg-gray-50"

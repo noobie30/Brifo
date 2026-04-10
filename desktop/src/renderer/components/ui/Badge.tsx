@@ -17,7 +17,7 @@ const variantStyles: Record<BadgeVariant, string> = {
 };
 
 const sizeStyles: Record<BadgeSize, string> = {
-  sm: "px-1.5 py-0.5 text-[11px]",
+  sm: "px-1.5 py-0.5 text-xs",
   md: "px-2 py-0.5 text-xs",
 };
 

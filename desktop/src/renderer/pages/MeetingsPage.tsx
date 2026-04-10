@@ -366,6 +366,17 @@ export function MeetingsPage() {
         endTime: item.endTime ?? null,
         joinUrl: item.joinUrl ?? null,
       });
+      setError(null);
+      setIsPermissionError(false);
+      // Open meeting link in browser and navigate to Quick Note
+      void window.electronAPI.openExternal(item.joinUrl);
+      const query = new URLSearchParams({
+        autoStart: "1",
+        source: item.title,
+        meetingId: item.meetingId,
+      });
+      if (item.endTime) query.set("endTime", item.endTime);
+      navigate(`/quick-note?${query.toString()}`);
     } catch (captureError) {
       setIsPermissionError(captureError instanceof PermissionError);
       setError(
@@ -373,21 +384,6 @@ export function MeetingsPage() {
           ? captureError.message
           : "Auto capture could not start.",
       );
-      return;
-    }
-
-    setJoiningKey(item.key);
-    try {
-      await window.electronAPI.openExternal(item.joinUrl);
-      setError(null);
-    } catch (joinError) {
-      setError(
-        joinError instanceof Error
-          ? joinError.message
-          : "Unable to open this meeting link.",
-      );
-    } finally {
-      setJoiningKey(null);
     }
   }
 
@@ -434,7 +430,7 @@ export function MeetingsPage() {
                 size="sm"
                 className={
                   filter === fb.key
-                    ? "bg-accent-50 text-accent-700 font-semibold"
+                    ? "bg-slate-100 text-slate-900 font-semibold"
                     : ""
                 }
                 onClick={() => {
@@ -453,7 +449,7 @@ export function MeetingsPage() {
               size="sm"
               className={
                 filter === "date"
-                  ? "bg-accent-50 text-accent-700 font-semibold"
+                  ? "bg-slate-100 text-slate-900 font-semibold"
                   : ""
               }
               onClick={() => {
@@ -516,10 +512,10 @@ export function MeetingsPage() {
       {/* Hero card - next meeting */}
       <Card
         padding="none"
-        className="overflow-hidden bg-gradient-to-br from-accent-600 to-accent-700 border-0 text-white"
+        className="overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border-0 text-white"
       >
         <div className="p-6 space-y-4">
-          <div className="flex items-center gap-2 text-accent-200 text-sm font-medium">
+          <div className="flex items-center gap-2 text-slate-300 text-sm font-medium">
             <Badge
               variant="accent"
               size="sm"
@@ -537,7 +533,7 @@ export function MeetingsPage() {
           <h3 className="text-xl font-semibold text-white">
             {heroMeeting?.title ?? "No upcoming meeting selected"}
           </h3>
-          <p className="text-accent-100 text-sm leading-relaxed">
+          <p className="text-slate-300 text-sm leading-relaxed">
             {heroMeeting
               ? `Starts ${new Date(heroMeeting.startTime).toLocaleDateString("en-GB")} ${new Date(heroMeeting.startTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}.`
               : "Connect your calendar to populate this area."}
@@ -547,7 +543,7 @@ export function MeetingsPage() {
             <Button
               variant="secondary"
               size="md"
-              className="bg-white text-accent-700 hover:bg-accent-50 border-0 shadow-sm"
+              className="bg-white text-slate-900 hover:bg-slate-50 border-0 shadow-sm"
               onClick={() => {
                 if (heroMeeting) {
                   void onJoinMeeting(heroMeeting);

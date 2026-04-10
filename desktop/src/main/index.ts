@@ -2,9 +2,11 @@ import {
   Notification,
   app,
   BrowserWindow,
+  desktopCapturer,
   ipcMain,
   nativeImage,
   safeStorage,
+  session,
   shell,
   systemPreferences,
 } from "electron";
@@ -16,6 +18,13 @@ import type { AddressInfo } from "node:net";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+// Enable system audio loopback capture on macOS (no external drivers needed).
+// These Chromium flags use ScreenCaptureKit to capture system audio output.
+app.commandLine.appendSwitch(
+  "enable-features",
+  "MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride",
+);
+
 const isDev = !app.isPackaged;
 let mainWindow: BrowserWindow | null = null;
 let resolvedAppIconPath: string | null = null;
@@ -25,6 +34,7 @@ const MEETING_DETECT_INTERVAL_MS = 2000;
 const MEETING_STABLE_MS = 5000;
 const MEETING_NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
 const DETECTOR_ERROR_LOG_THROTTLE_MS = 60 * 1000;
+const MEETING_GONE_STOP_DELAY_MS = 10_000;
 const JIRA_OAUTH_CALLBACK_PORT = Number(
   process.env.BRIFO_JIRA_OAUTH_PORT ?? 53682,
 );
@@ -36,6 +46,7 @@ let candidateKey: string | null = null;
 let candidateSinceMs = 0;
 const lastNotifiedAtMs = new Map<string, number>();
 let lastDetectorErrorLoggedAtMs = 0;
+let meetingGoneSinceMs = 0;
 
 function resolveAppIconPath(): string | null {
   const candidates = [
@@ -102,43 +113,97 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function renderOAuthMessage(title: string, message: string): string {
+function renderOAuthMessage(
+  title: string,
+  message: string,
+  isSuccess = false,
+): string {
   const safeTitle = escapeHtml(title);
   const safeMessage = escapeHtml(message);
+
+  const icon = isSuccess
+    ? `<div class="icon success"><svg width="48" height="48" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="12" fill="#10b981"/><path d="M7.5 12.5l3 3 6-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`
+    : `<div class="icon error"><svg width="48" height="48" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="12" fill="#ef4444"/><path d="M8 8l8 8M16 8l-8 8" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></div>`;
+
+  const autoClose = isSuccess
+    ? `<p class="countdown">This tab will close in <span id="timer">3</span> seconds...</p>
+       <script>
+         let t = 3;
+         const el = document.getElementById('timer');
+         const interval = setInterval(() => {
+           t--;
+           if (el) el.textContent = String(t);
+           if (t <= 0) { clearInterval(interval); window.close(); }
+         }, 1000);
+       </script>`
+    : "";
 
   return `<!doctype html>
   <html>
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>${safeTitle}</title>
+      <title>Brifo - ${safeTitle}</title>
       <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-          margin: 0;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
           min-height: 100vh;
-          display: grid;
-          place-items: center;
-          background: #f2f5fa;
-          color: #1c2a42;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #f0fdf4 100%);
+          color: #111827;
         }
         .card {
-          width: min(460px, calc(100% - 32px));
+          width: min(420px, calc(100% - 40px));
           background: #fff;
-          border: 1px solid #dbe3ef;
-          border-radius: 14px;
-          padding: 22px;
-          box-shadow: 0 8px 28px rgba(20, 33, 51, 0.08);
+          border-radius: 20px;
+          padding: 48px 36px;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 20px 50px -12px rgba(0,0,0,0.1);
           text-align: center;
+          animation: slideUp 0.4s ease-out;
         }
-        h1 { margin: 0 0 10px; font-size: 24px; }
-        p { margin: 0; color: #58667c; line-height: 1.5; }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .logo {
+          font-size: 28px;
+          font-weight: 700;
+          letter-spacing: -0.5px;
+          color: #111827;
+          margin-bottom: 28px;
+        }
+        .icon { margin-bottom: 20px; }
+        .icon svg { filter: drop-shadow(0 2px 8px rgba(0,0,0,0.1)); }
+        h1 {
+          font-size: 22px;
+          font-weight: 600;
+          margin-bottom: 8px;
+          color: #111827;
+        }
+        .message {
+          font-size: 15px;
+          color: #6b7280;
+          line-height: 1.6;
+          margin-bottom: 4px;
+        }
+        .countdown {
+          font-size: 13px;
+          color: #9ca3af;
+          margin-top: 20px;
+        }
+        .countdown span { font-weight: 600; color: #6b7280; }
       </style>
     </head>
     <body>
       <div class="card">
+        <div class="logo">Brifo</div>
+        ${icon}
         <h1>${safeTitle}</h1>
-        <p>${safeMessage}</p>
+        <p class="message">${safeMessage}</p>
+        ${autoClose}
       </div>
     </body>
   </html>`;
@@ -388,6 +453,14 @@ async function queryBrowserMeetingTabUrls(
   browserName: "Google Chrome" | "Safari",
 ): Promise<string[]> {
   // Scan ALL tabs across ALL windows for meeting URLs
+  // Only collect URLs that look like active meeting sessions (not landing pages)
+  const urlFilter = [
+    'tabUrl contains "meet.google.com/" and tabUrl does not end with "meet.google.com/"',
+    'tabUrl contains "zoom.us/j/" or tabUrl contains "zoom.us/wc/"',
+    'tabUrl contains "teams.microsoft.com/l/meetup-join" or tabUrl contains "teams.live.com"',
+    'tabUrl contains "webex.com/meet/" or tabUrl contains "webex.com/join/"',
+  ].join(" or ");
+
   const script =
     browserName === "Google Chrome"
       ? [
@@ -397,7 +470,7 @@ async function queryBrowserMeetingTabUrls(
           "    repeat with w in windows",
           "      repeat with t in tabs of w",
           "        set tabUrl to URL of t",
-          '        if tabUrl contains "meet.google.com" or tabUrl contains "teams.microsoft.com" or tabUrl contains "zoom.us" or tabUrl contains "webex.com" then',
+          `        if ${urlFilter} then`,
           "          set end of urlList to tabUrl",
           "        end if",
           "      end repeat",
@@ -414,7 +487,7 @@ async function queryBrowserMeetingTabUrls(
           "    repeat with w in windows",
           "      repeat with t in tabs of w",
           "        set tabUrl to URL of t",
-          '        if tabUrl contains "meet.google.com" or tabUrl contains "teams.microsoft.com" or tabUrl contains "zoom.us" or tabUrl contains "webex.com" then',
+          `        if ${urlFilter} then`,
           "          set end of urlList to tabUrl",
           "        end if",
           "      end repeat",
@@ -459,12 +532,38 @@ function extractMeetingSignalFromUrl(
     return null;
   }
 
-  const target = `${parsedUrl.hostname}${parsedUrl.pathname}`.toLowerCase();
-  if (
-    !/meet\.google\.com|teams\.microsoft\.com|zoom\.us\/(j|wc)|webex\.com\/(meet|join)/.test(
-      target,
-    )
-  ) {
+  const hostname = parsedUrl.hostname.toLowerCase();
+  const pathname = parsedUrl.pathname.toLowerCase();
+
+  // Google Meet: require an active meeting code (e.g. /abc-defg-hij)
+  if (hostname === "meet.google.com") {
+    if (!/^\/[a-z]{3,}-[a-z]{4,}-[a-z]{3,}/.test(pathname)) {
+      return null;
+    }
+  }
+  // Teams web: only match meeting/call URLs, not chat/files/calendar
+  else if (hostname.endsWith("teams.microsoft.com") || hostname === "teams.live.com") {
+    if (
+      !pathname.startsWith("/l/meetup-join") &&
+      !pathname.startsWith("/meet/") &&
+      !pathname.startsWith("/_#/pre-join") &&
+      !pathname.startsWith("/v2/") // Teams v2 meeting URLs
+    ) {
+      return null;
+    }
+  }
+  // Zoom web: /j/ or /wc/ paths (join/web-client)
+  else if (hostname.endsWith("zoom.us")) {
+    if (!/^\/(j|wc)\//.test(pathname)) {
+      return null;
+    }
+  }
+  // Webex: /meet/ or /join/ paths
+  else if (hostname.endsWith("webex.com")) {
+    if (!/^\/(meet|join)\//.test(pathname)) {
+      return null;
+    }
+  } else {
     return null;
   }
 
@@ -475,7 +574,7 @@ function extractMeetingSignalFromUrl(
     .join("/");
 
   return {
-    key: `${sourceApp}:${parsedUrl.hostname.toLowerCase()}/${path}`,
+    key: `${sourceApp}:${hostname}/${path}`,
     sourceApp,
   };
 }
@@ -539,7 +638,9 @@ async function detectMicrophoneUsageSignal(
   return { key: `mic-active:${timeBucket}`, sourceApp };
 }
 
-async function detectMeetingSignal(): Promise<MeetingSignal | null> {
+async function detectMeetingSignal(
+  excludeMicFallback = false,
+): Promise<MeetingSignal | null> {
   // 1. Fast path: check active tab in Chrome
   try {
     const chromeUrl = await queryBrowserActiveTabUrl("Google Chrome");
@@ -596,7 +697,8 @@ async function detectMeetingSignal(): Promise<MeetingSignal | null> {
     maybeLogDetectorError(error);
   }
 
-  // 6. Check running desktop meeting apps (Zoom, Teams)
+  // 6. Check for desktop meeting apps (Zoom/Teams) by process name — this does
+  //    not depend on the mic state, so it's safe even when we're capturing.
   if (processList) {
     const desktopSignal = detectDesktopMeetingAppFromProcesses(processList);
     if (desktopSignal) {
@@ -604,14 +706,19 @@ async function detectMeetingSignal(): Promise<MeetingSignal | null> {
     }
   }
 
-  // 7. Fallback: check if microphone is in use
-  try {
-    const micSignal = await detectMicrophoneUsageSignal(processList);
-    if (micSignal) {
-      return micSignal;
+  // 7. Mic-activity fallback (for ad-hoc Slack/Discord/FaceTime calls).
+  //    Skip this when we're already capturing, otherwise Brifo's own mic usage
+  //    will make this signal always-true and the meeting-end detector will
+  //    never fire.
+  if (!excludeMicFallback) {
+    try {
+      const micSignal = await detectMicrophoneUsageSignal(processList);
+      if (micSignal) {
+        return micSignal;
+      }
+    } catch (error) {
+      maybeLogDetectorError(error);
     }
-  } catch (error) {
-    maybeLogDetectorError(error);
   }
 
   return null;
@@ -628,10 +735,56 @@ async function runMeetingDetectorTick() {
       return;
     }
 
+    // While capture is active, check if the meeting is still present
+    // (browser tab open, desktop app running).  If the meeting signal
+    // disappears for MEETING_GONE_STOP_DELAY_MS, notify the renderer.
+    //
+    // IMPORTANT: excludeMicFallback=true — Brifo itself holds the mic during
+    // capture, so the ioreg mic-active signal would always return true here
+    // and the meeting-end detector would never fire.
     if (captureActive) {
       resetMeetingDetectionCandidate();
+      const signal = await detectMeetingSignal(true);
+      const now = Date.now();
+
+      if (signal) {
+        // Meeting signal still present — meeting still going
+        meetingGoneSinceMs = 0;
+      } else if (meetingGoneSinceMs === 0) {
+        // Signal just disappeared — start tracking
+        meetingGoneSinceMs = now;
+        console.log(
+          "[brifo][meeting-detector] Meeting signal lost during capture, watching...",
+        );
+      } else if (now - meetingGoneSinceMs >= MEETING_GONE_STOP_DELAY_MS) {
+        // Signal gone for MEETING_GONE_STOP_DELAY_MS — meeting likely ended
+        const delaySeconds = Math.round(MEETING_GONE_STOP_DELAY_MS / 1000);
+        console.log(
+          `[brifo][meeting-detector] Meeting signal gone for ${delaySeconds}s — signaling meeting end.`,
+        );
+        meetingGoneSinceMs = 0;
+
+        // Show OS notification
+        if (Notification.isSupported()) {
+          const notification = new Notification({
+            title: "Meeting ended",
+            body: "Generating notes and tasks...",
+            silent: true,
+          });
+          notification.on("click", () => focusOrCreateMainWindow());
+          notification.show();
+        }
+
+        // Signal renderer to stop capture
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("capture:meeting-ended");
+        }
+      }
       return;
     }
+
+    // Reset tracking when not capturing
+    meetingGoneSinceMs = 0;
 
     pruneNotificationCooldowns();
 
@@ -776,17 +929,15 @@ async function startGoogleOAuthFlow({
             /has not completed the Google verification process/i.test(
               errorDescription,
             );
+          const reason = isUnverifiedBlocked ? "blocked" : "canceled";
           const message = isUnverifiedBlocked
             ? "Google blocked access because the OAuth app is in testing mode and your account is not an approved test user."
             : "Google sign-in was canceled. You can close this tab and try again.";
 
-          response.writeHead(200, { "content-type": "text/html" });
-          response.end(
-            renderOAuthMessage(
-              isUnverifiedBlocked ? "Access blocked" : "Sign-in canceled",
-              message,
-            ),
-          );
+          response.writeHead(302, {
+            Location: `https://brifo.in/auth-error.html?reason=${reason}`,
+          });
+          response.end();
           finishWithError(new Error(message));
           return;
         }
@@ -795,38 +946,29 @@ async function startGoogleOAuthFlow({
         const code = requestUrl.searchParams.get("code");
 
         if (!returnedState || returnedState !== state) {
-          response.writeHead(200, { "content-type": "text/html" });
-          response.end(
-            renderOAuthMessage(
-              "Sign-in failed",
-              "State validation failed. Please close this tab and try again.",
-            ),
-          );
+          response.writeHead(302, {
+            Location: "https://brifo.in/auth-error.html?reason=state",
+          });
+          response.end();
           finishWithError(new Error("Google sign-in failed state validation."));
           return;
         }
 
         if (!code) {
-          response.writeHead(200, { "content-type": "text/html" });
-          response.end(
-            renderOAuthMessage(
-              "Sign-in failed",
-              "Google did not return an authorization code. Please try again.",
-            ),
-          );
+          response.writeHead(302, {
+            Location: "https://brifo.in/auth-error.html?reason=nocode",
+          });
+          response.end();
           finishWithError(
             new Error("Google sign-in failed. No authorization code returned."),
           );
           return;
         }
 
-        response.writeHead(200, { "content-type": "text/html" });
-        response.end(
-          renderOAuthMessage(
-            "Sign-in complete",
-            "You can close this tab now and return to Brifo.",
-          ),
-        );
+        response.writeHead(302, {
+          Location: "https://brifo.in/auth-success.html",
+        });
+        response.end();
 
         try {
           const tokenResponse = await fetch(
@@ -892,7 +1034,7 @@ async function startGoogleOAuthFlow({
       );
     });
 
-    server.listen(0, "127.0.0.1", () => {
+    server.listen(0, () => {
       const address = server.address();
       if (!address || typeof address === "string") {
         finishWithError(
@@ -1027,13 +1169,10 @@ async function startJiraDesktopAuth({
 
         const jiraError = requestUrl.searchParams.get("error");
         if (jiraError) {
-          response.writeHead(200, { "content-type": "text/html" });
-          response.end(
-            renderOAuthMessage(
-              "Jira sign-in canceled",
-              "Jira authorization was canceled. You can close this tab and try again.",
-            ),
-          );
+          response.writeHead(302, {
+            Location: "https://brifo.in/auth-error.html?reason=canceled",
+          });
+          response.end();
           finishWithError(new Error("Jira sign-in was canceled."));
           return;
         }
@@ -1042,38 +1181,29 @@ async function startJiraDesktopAuth({
         const code = requestUrl.searchParams.get("code");
 
         if (!returnedState || returnedState !== state) {
-          response.writeHead(200, { "content-type": "text/html" });
-          response.end(
-            renderOAuthMessage(
-              "Jira sign-in failed",
-              "State validation failed. Please close this tab and try again.",
-            ),
-          );
+          response.writeHead(302, {
+            Location: "https://brifo.in/auth-error.html?reason=state",
+          });
+          response.end();
           finishWithError(new Error("Jira sign-in failed state validation."));
           return;
         }
 
         if (!code) {
-          response.writeHead(200, { "content-type": "text/html" });
-          response.end(
-            renderOAuthMessage(
-              "Jira sign-in failed",
-              "Jira did not return an authorization code. Please try again.",
-            ),
-          );
+          response.writeHead(302, {
+            Location: "https://brifo.in/auth-error.html?reason=nocode",
+          });
+          response.end();
           finishWithError(
             new Error("Jira sign-in failed. No authorization code returned."),
           );
           return;
         }
 
-        response.writeHead(200, { "content-type": "text/html" });
-        response.end(
-          renderOAuthMessage(
-            "Jira sign-in complete",
-            "You can close this tab now and return to Brifo.",
-          ),
-        );
+        response.writeHead(302, {
+          Location: "https://brifo.in/auth-success.html",
+        });
+        response.end();
 
         try {
           const tokenResponse = await fetch(
@@ -1291,6 +1421,24 @@ app.whenReady().then(() => {
     });
   }
 
+  // Handle getDisplayMedia requests from the renderer to provide system audio
+  // loopback without showing a screen picker dialog.
+  session.defaultSession.setDisplayMediaRequestHandler(
+    async (_request, callback) => {
+      // Get a screen source so we can extract its ID for system audio
+      const sources = await desktopCapturer.getSources({ types: ["screen"] });
+      const primaryScreen = sources[0];
+      if (primaryScreen) {
+        callback({
+          video: primaryScreen,
+          audio: "loopback",
+        });
+      } else {
+        callback({});
+      }
+    },
+  );
+
   ipcMain.handle("app:get-info", () => ({
     name: "Brifo",
     version: app.getVersion(),
@@ -1315,6 +1463,13 @@ app.whenReady().then(() => {
     );
   });
 
+  ipcMain.handle("permissions:open-screen-recording-settings", async () => {
+    if (process.platform !== "darwin") return;
+    await shell.openExternal(
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+    );
+  });
+
   ipcMain.handle(
     "auth:google:start",
     (_event, payload: GoogleDesktopAuthRequest) =>
@@ -1333,6 +1488,7 @@ app.whenReady().then(() => {
     "capture:status",
     (_event, payload: { active?: boolean } | undefined) => {
       captureActive = !!payload?.active;
+      meetingGoneSinceMs = 0;
       if (captureActive) {
         resetMeetingDetectionCandidate();
       }

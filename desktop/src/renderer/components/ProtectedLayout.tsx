@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { BackgroundFinalizer } from "./BackgroundFinalizer";
 import { Sidebar } from "./Sidebar";
 import { MeetingDetectedBanner } from "./MeetingDetectedBanner";
 import { useAppStore } from "../store/app-store";
@@ -18,7 +19,7 @@ function getPageTitle(pathname: string) {
     return "Meetings";
   }
   if (pathname.startsWith("/quick-note")) {
-    return "New note";
+    return "Quick Note";
   }
   if (pathname.startsWith("/documents")) {
     return "Documents";
@@ -92,7 +93,6 @@ export function ProtectedLayout() {
       const signalKey = payload?.signalKey?.trim();
       const sourceApp = payload?.sourceApp?.trim() || "Detected";
       const query = new URLSearchParams({
-        autoStart: "1",
         source: sourceApp,
       });
       if (signalKey) {
@@ -114,16 +114,17 @@ export function ProtectedLayout() {
 
   return (
     <>
+      <BackgroundFinalizer />
       <MeetingDetectedBanner />
       <div className="flex h-screen overflow-hidden bg-gray-50">
         <Sidebar />
 
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center h-14 px-8 border-b border-gray-200 bg-white shrink-0">
+          <header className="flex items-center h-12 px-6 border-b border-gray-200 bg-white shrink-0">
             <h2 className="text-sm font-semibold text-gray-800">{pageTitle}</h2>
           </header>
 
-          <main className="flex-1 overflow-y-auto p-8">
+          <main className="flex-1 overflow-y-auto p-6">
             <Outlet />
           </main>
         </div>

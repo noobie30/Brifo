@@ -19,7 +19,7 @@ export function StatCard({
 }: StatCardProps) {
   return (
     <div
-      className={`bg-white rounded-lg border border-gray-200 shadow-xs p-4 ${className}`}
+      className={`bg-white rounded-lg border border-gray-200 shadow-sm p-4 ${className}`}
     >
       <div className="flex items-center gap-2 mb-2">
         {icon && <span className="text-gray-400">{icon}</span>}

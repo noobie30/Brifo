@@ -1,9 +1,8 @@
 import { Header } from "./components/Header";
 import { Hero } from "./components/Hero";
-import { Features } from "./components/Features";
 import { HowItWorks } from "./components/HowItWorks";
-import { Privacy } from "./components/Privacy";
-import { CallToAction } from "./components/CallToAction";
+import { Integrations } from "./components/Integrations";
+import { CTA } from "./components/CTA";
 import { Footer } from "./components/Footer";
 
 export function App() {
@@ -11,10 +10,9 @@ export function App() {
     <div className="min-h-screen bg-white font-sans text-gray-900 antialiased">
       <Header />
       <Hero />
-      <Features />
       <HowItWorks />
-      <Privacy />
-      <CallToAction />
+      <Integrations />
+      <CTA />
       <Footer />
     </div>
   );

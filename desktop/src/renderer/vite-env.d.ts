@@ -11,6 +11,7 @@ interface Window {
     }>;
     requestMicrophoneAccess: () => Promise<boolean>;
     openMicrophoneSettings: () => Promise<void>;
+    openScreenRecordingSettings: () => Promise<void>;
     startGoogleAuth: (payload: {
       clientId: string;
       clientSecret?: string;
@@ -49,5 +50,6 @@ interface Window {
     onMeetingDetectedBanner: (
       callback: (payload: { sourceApp?: string; signalKey?: string }) => void,
     ) => () => void;
+    onMeetingEnded: (callback: () => void) => () => void;
   };
 }

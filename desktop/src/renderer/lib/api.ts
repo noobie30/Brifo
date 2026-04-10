@@ -143,6 +143,7 @@ export async function startMeeting(payload: {
   title: string;
   source?: "manual" | "calendar";
   privacyMode?: "normal" | "private";
+  calendarEventId?: string;
 }) {
   const { data } = await api.post("/meetings/start", payload);
   return data as Meeting;
@@ -210,6 +211,29 @@ export async function appendAutoTranscriptChunk(payload: {
   );
 
   return data as { accepted: boolean };
+}
+
+export async function startTranscriptStream(meetingId: string) {
+  const { data } = await api.post(
+    `/meetings/${encodeMeetingId(meetingId)}/transcript/stream/start`,
+  );
+  return data as { sessionId: string };
+}
+
+export async function sendStreamAudio(meetingId: string, pcmBlob: Blob) {
+  const formData = new FormData();
+  formData.append("audio", pcmBlob, "audio.pcm");
+  await api.post(
+    `/meetings/${encodeMeetingId(meetingId)}/transcript/stream/audio`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+}
+
+export async function stopTranscriptStream(meetingId: string) {
+  await api.post(
+    `/meetings/${encodeMeetingId(meetingId)}/transcript/stream/stop`,
+  );
 }
 
 export async function generateNotes(
