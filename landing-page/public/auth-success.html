@@ -43,15 +43,6 @@
       .check svg { width: 28px; height: 28px; }
       h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
       .message { font-size: 15px; color: #6b7280; line-height: 1.6; }
-      .countdown { font-size: 13px; color: #9ca3af; margin-top: 24px; }
-      .countdown span { font-weight: 600; color: #6b7280; }
-      .close-btn {
-        display: inline-block; margin-top: 20px; padding: 10px 28px;
-        background: #111827; color: #fff; border: none; border-radius: 10px;
-        font-size: 14px; font-weight: 500; cursor: pointer;
-        text-decoration: none; transition: background 0.2s;
-      }
-      .close-btn:hover { background: #374151; }
     </style>
   </head>
   <body>
@@ -64,8 +55,6 @@
       </div>
       <h1 id="heading">Sign-in complete</h1>
       <p class="message" id="message">You're all set. Return to the Brifo app to continue.</p>
-      <p class="countdown">This tab will close in <span id="timer">3</span> seconds...</p>
-      <a href="#" class="close-btn" onclick="window.close(); return false;">Close this tab</a>
     </div>
     <script>
       const params = new URLSearchParams(window.location.search);
@@ -78,17 +67,13 @@
         if (m) m.textContent = 'Your Jira workspace is connected. Return to the Brifo app to continue.';
       }
 
-      let t = 3;
-      const el = document.getElementById('timer');
-      const iv = setInterval(() => {
-        t--;
-        if (el) el.textContent = String(t);
-        if (t <= 0) {
-          clearInterval(iv);
-          try { window.open('', '_self').close(); } catch(e) {}
-          try { window.close(); } catch(e) {}
-        }
-      }, 1000);
+      // Attempt to auto-close the tab immediately. Browsers only allow
+      // window.close() on windows opened via script (window.open) — for
+      // OAuth return tabs opened externally by the desktop app this will
+      // silently no-op and the clean success card just stays visible,
+      // which is still better UX than a stuck "0 seconds" countdown.
+      try { window.open('', '_self').close(); } catch (e) {}
+      try { window.close(); } catch (e) {}
     </script>
   </body>
 </html>
