@@ -41,15 +41,17 @@ import { envValidationSchema } from "./config/env.validation";
           "MONGODB_URI",
           "mongodb://localhost:27017/brifo",
         ),
-        // Fail fast in serverless: Vercel Hobby caps invocation at 10s.
-        // A single attempt with a 5s budget either connects healthily or
-        // surfaces the real error through serverless.ts's bootstrap
-        // try/catch. Prior config (3 retries x 15s = up to 45s) always
-        // exceeded Vercel's budget and got masked as FUNCTION_INVOCATION_FAILED.
+        // Fail fast in serverless: Vercel Hobby caps invocation at ~10s.
+        // With retryAttempts: 0 the factory fails on the first attempt
+        // (~5s) instead of first + one retry (~11s), leaving headroom for
+        // NestJS's per-module init work and for serverless.ts to surface
+        // the real error via its bootstrap try/catch. Local dev
+        // (main.ts path) is unaffected — the same module config just
+        // means dev fails faster on a misconfigured URI, which we want.
         serverSelectionTimeoutMS: 5000,
         connectTimeoutMS: 5000,
         socketTimeoutMS: 30000,
-        retryAttempts: 1,
+        retryAttempts: 0,
         retryDelay: 1000,
       }),
     }),
