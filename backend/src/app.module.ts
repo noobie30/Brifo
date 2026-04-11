@@ -41,10 +41,15 @@ import { envValidationSchema } from "./config/env.validation";
           "MONGODB_URI",
           "mongodb://localhost:27017/brifo",
         ),
-        serverSelectionTimeoutMS: 15000,
-        connectTimeoutMS: 15000,
+        // Fail fast in serverless: Vercel Hobby caps invocation at 10s.
+        // A single attempt with a 5s budget either connects healthily or
+        // surfaces the real error through serverless.ts's bootstrap
+        // try/catch. Prior config (3 retries x 15s = up to 45s) always
+        // exceeded Vercel's budget and got masked as FUNCTION_INVOCATION_FAILED.
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000,
         socketTimeoutMS: 30000,
-        retryAttempts: 3,
+        retryAttempts: 1,
         retryDelay: 1000,
       }),
     }),
