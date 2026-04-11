@@ -107,10 +107,7 @@ export class NotesService {
     userId: string,
     meetingId: string,
   ): Promise<{ deleted: boolean }> {
-    await Promise.all([
-      this.noteModel.deleteOne({ userId, meetingId }).exec(),
-      this.tasksService.deleteTasksForMeeting(userId, meetingId),
-    ]);
+    await this.noteModel.deleteOne({ userId, meetingId }).exec();
 
     return { deleted: true };
   }
