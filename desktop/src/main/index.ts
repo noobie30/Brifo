@@ -966,7 +966,7 @@ async function startGoogleOAuthFlow({
         }
 
         response.writeHead(302, {
-          Location: "https://brifo.in/auth-success.html",
+          Location: "https://brifo.in/auth-success.html?flow=google",
         });
         response.end();
 
@@ -1201,7 +1201,7 @@ async function startJiraDesktopAuth({
         }
 
         response.writeHead(302, {
-          Location: "https://brifo.in/auth-success.html",
+          Location: "https://brifo.in/auth-success.html?flow=jira",
         });
         response.end();
 

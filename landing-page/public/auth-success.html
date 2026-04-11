@@ -62,12 +62,22 @@
           <path d="M5 13l4 4L19 7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
-      <h1>Sign-in complete</h1>
-      <p class="message">You're all set. Return to the Brifo app to continue.</p>
+      <h1 id="heading">Sign-in complete</h1>
+      <p class="message" id="message">You're all set. Return to the Brifo app to continue.</p>
       <p class="countdown">This tab will close in <span id="timer">3</span> seconds...</p>
       <a href="#" class="close-btn" onclick="window.close(); return false;">Close this tab</a>
     </div>
     <script>
+      const params = new URLSearchParams(window.location.search);
+      const flow = params.get('flow');
+      if (flow === 'jira') {
+        document.title = 'Brifo - Jira Connected';
+        const h = document.getElementById('heading');
+        const m = document.getElementById('message');
+        if (h) h.textContent = 'Jira connected';
+        if (m) m.textContent = 'Your Jira workspace is connected. Return to the Brifo app to continue.';
+      }
+
       let t = 3;
       const el = document.getElementById('timer');
       const iv = setInterval(() => {
