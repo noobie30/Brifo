@@ -19,7 +19,7 @@
     "test": "npm run test --workspaces",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,css}\"",
     "typecheck": "npm run typecheck --workspaces",
-    "vercel-build": "npm run build --workspace packages/shared && npm run build --workspace backend && npm run build --workspace landing-page && rm -rf api/_backend && cp -r backend/dist api/_backend && node scripts/generate-api-manifest.js"
+    "vercel-build": "rm -rf backend/dist backend/tsconfig.tsbuildinfo backend/tsconfig.build.tsbuildinfo packages/shared/dist packages/shared/tsconfig.tsbuildinfo && npm run build --workspace packages/shared && npm run build --workspace backend && npm run build --workspace landing-page && rm -rf api/_backend && cp -r backend/dist api/_backend && node scripts/generate-api-manifest.js"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
