@@ -15,15 +15,15 @@ The current Brifo landing page (`landing-page`) is a basic single-page marketing
 
 Monochrome with high contrast:
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--bg-primary` | `#ffffff` | Hero, how-it-works backgrounds |
-| `--bg-secondary` | `#fafafa` | Features, privacy section backgrounds |
-| `--bg-dark` | `#111111` | Final CTA, footer |
-| `--text-primary` | `#111111` | Headlines |
-| `--text-secondary` | `#666666` | Body text, subtitles |
-| `--text-muted` | `#999999` | Labels, captions |
-| `--border` | `#e0e0e0` | Card borders, dividers |
+| Token              | Value     | Usage                                 |
+| ------------------ | --------- | ------------------------------------- |
+| `--bg-primary`     | `#ffffff` | Hero, how-it-works backgrounds        |
+| `--bg-secondary`   | `#fafafa` | Features, privacy section backgrounds |
+| `--bg-dark`        | `#111111` | Final CTA, footer                     |
+| `--text-primary`   | `#111111` | Headlines                             |
+| `--text-secondary` | `#666666` | Body text, subtitles                  |
+| `--text-muted`     | `#999999` | Labels, captions                      |
+| `--border`         | `#e0e0e0` | Card borders, dividers                |
 
 ## Typography
 
@@ -133,6 +133,7 @@ All animations use CSS `@keyframes` + a lightweight Intersection Observer hook (
 ```
 
 Animation classes:
+
 - `.fade-up` — opacity 0→1, translateY 20px→0, 0.6s ease-out
 - `.fade-up-delay-1` — same + 100ms delay
 - `.fade-up-delay-2` — same + 200ms delay

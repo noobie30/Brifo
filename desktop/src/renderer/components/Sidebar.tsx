@@ -48,7 +48,10 @@ export function Sidebar() {
                 {isActive && (
                   <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-accent-400" />
                 )}
-                <span className="material-symbols-outlined text-[20px]" aria-hidden>
+                <span
+                  className="material-symbols-outlined text-[20px]"
+                  aria-hidden
+                >
                   {item.icon}
                 </span>
                 <span>{item.label}</span>

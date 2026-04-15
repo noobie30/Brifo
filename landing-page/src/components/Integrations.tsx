@@ -49,10 +49,7 @@ export function Integrations() {
   return (
     <section className="bg-white px-6 py-16 md:px-12 md:py-20">
       <div ref={ref} className="mx-auto max-w-4xl text-center">
-        <p
-          className="mb-10 text-sm font-medium text-gray-400"
-          data-animate
-        >
+        <p className="mb-10 text-sm font-medium text-gray-400" data-animate>
           Works with the tools you already use
         </p>
 

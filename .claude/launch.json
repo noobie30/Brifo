@@ -4,13 +4,19 @@
     {
       "name": "web",
       "runtimeExecutable": "/bin/sh",
-      "runtimeArgs": ["-c", "cd /Users/pankajsankhala/Downloads/Brifo/landing-page && PATH=/opt/homebrew/bin:$PATH npx vite --port 5174"],
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/pankajsankhala/Downloads/Brifo/landing-page && PATH=/opt/homebrew/bin:$PATH npx vite --port 5174"
+      ],
       "port": 5174
     },
     {
       "name": "icons",
       "runtimeExecutable": "/opt/homebrew/bin/node",
-      "runtimeArgs": ["-e", "const http=require('http'),fs=require('fs');http.createServer((q,r)=>{r.writeHead(200,{'Content-Type':'text/html'});r.end(fs.readFileSync('/Users/pankajsankhala/Downloads/Brifo/landing-page/generate-social-icons.html'))}).listen(8889,()=>console.log('http://localhost:8889'))"],
+      "runtimeArgs": [
+        "-e",
+        "const http=require('http'),fs=require('fs');http.createServer((q,r)=>{r.writeHead(200,{'Content-Type':'text/html'});r.end(fs.readFileSync('/Users/pankajsankhala/Downloads/Brifo/landing-page/generate-social-icons.html'))}).listen(8889,()=>console.log('http://localhost:8889'))"
+      ],
       "port": 8889
     }
   ]

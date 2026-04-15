@@ -37,6 +37,10 @@ import { UsersModule } from "../users/users.module";
     SpeakerResolutionService,
     JwtAuthGuard,
   ],
-  exports: [TranscriptsService, DeepgramStreamingService, SpeakerResolutionService],
+  exports: [
+    TranscriptsService,
+    DeepgramStreamingService,
+    SpeakerResolutionService,
+  ],
 })
 export class TranscriptsModule {}

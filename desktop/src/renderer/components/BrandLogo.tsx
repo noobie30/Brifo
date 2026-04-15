@@ -21,7 +21,9 @@ export function BrandLogo({
           alt="Brifo logo mark"
           className={compact ? "h-6 w-6" : "h-7 w-7"}
         />
-        <span className={`text-lg font-bold tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+        <span
+          className={`text-lg font-bold tracking-tight ${dark ? "text-white" : "text-gray-900"}`}
+        >
           Brifo
         </span>
       </div>

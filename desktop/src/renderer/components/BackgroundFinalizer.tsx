@@ -180,9 +180,7 @@ export function BackgroundFinalizer() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-800">{heading}</p>
           <p className="text-xs text-gray-500 mt-0.5 break-words">
-            {isError
-              ? banner.message
-              : `${banner.title} — ${banner.message}`}
+            {isError ? banner.message : `${banner.title} — ${banner.message}`}
           </p>
         </div>
         {!isError && (

@@ -7,10 +7,7 @@ import {
   TranscriptSegment,
   TranscriptSegmentDocument,
 } from "./schemas/transcript-segment.schema";
-import {
-  Meeting,
-  MeetingDocument,
-} from "../meetings/schemas/meeting.schema";
+import { Meeting, MeetingDocument } from "../meetings/schemas/meeting.schema";
 
 interface DeepgramWord {
   word?: string;
@@ -60,7 +57,8 @@ export class DeepgramStreamingService {
     private readonly meetingModel: Model<MeetingDocument>,
     private readonly configService: ConfigService,
   ) {
-    this.apiKey = this.configService.get<string>("DEEPGRAM_API_KEY")?.trim() ?? "";
+    this.apiKey =
+      this.configService.get<string>("DEEPGRAM_API_KEY")?.trim() ?? "";
   }
 
   isConfigured(): boolean {
@@ -144,9 +142,7 @@ export class DeepgramStreamingService {
     });
 
     ws.on("error", (error) => {
-      this.logger.error(
-        `Deepgram WS error for ${meetingId}: ${error.message}`,
-      );
+      this.logger.error(`Deepgram WS error for ${meetingId}: ${error.message}`);
     });
 
     ws.on("close", () => {
@@ -158,9 +154,18 @@ export class DeepgramStreamingService {
 
     // Wait for connection to open
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Deepgram connection timeout")), 10_000);
-      ws.once("open", () => { clearTimeout(timeout); resolve(); });
-      ws.once("error", (err) => { clearTimeout(timeout); reject(err); });
+      const timeout = setTimeout(
+        () => reject(new Error("Deepgram connection timeout")),
+        10_000,
+      );
+      ws.once("open", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+      ws.once("error", (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
     });
 
     this.activeSessions.set(sessionId, session);

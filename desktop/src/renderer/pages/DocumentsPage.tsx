@@ -234,9 +234,7 @@ export function DocumentsPage() {
 
     const normalizedTranscript = manualTranscript.trim();
     if (!normalizedTranscript) {
-      setManualSubmitError(
-        "Paste a transcript before generating.",
-      );
+      setManualSubmitError("Paste a transcript before generating.");
       return;
     }
 
@@ -386,9 +384,7 @@ export function DocumentsPage() {
       {
         label: "Processing",
         value: processing,
-        icon: (
-          <span className="material-symbols-rounded text-lg">sync</span>
-        ),
+        icon: <span className="material-symbols-rounded text-lg">sync</span>,
       },
     ];
   }, [documentEntries]);
@@ -568,10 +564,7 @@ export function DocumentsPage() {
             </Select>
           </Field>
 
-          <Field
-            label="Transcript"
-            error={manualSubmitError ?? undefined}
-          >
+          <Field label="Transcript" error={manualSubmitError ?? undefined}>
             <Textarea
               rows={9}
               value={manualTranscript}

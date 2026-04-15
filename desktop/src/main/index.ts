@@ -316,6 +316,37 @@ interface MeetingSignal {
   sourceApp: string;
 }
 
+// Outcome of a single detector poll. "error" means at least one detection
+// strategy threw (e.g. AppleScript lost Automation permission or osascript
+// timed out) — the caller should NOT treat this like "no signal" because the
+// meeting might still be ongoing and just invisible to us this tick.
+type DetectionOutcome =
+  | { kind: "signal"; signal: MeetingSignal }
+  | { kind: "none" }
+  | { kind: "error"; reasons: string[] };
+
+const DETECTOR_DEBUG =
+  process.env.BRIFO_MEETING_DETECTOR_DEBUG === "1" ||
+  process.env.BRIFO_MEETING_DETECTOR_DEBUG === "true";
+
+function detectorDebug(message: string) {
+  if (!DETECTOR_DEBUG) return;
+  console.log(`[brifo][meeting-detector][debug] ${message}`);
+}
+
+function describeError(error: unknown): string {
+  if (error instanceof Error) {
+    // Trim long stack noise; keep short first-line message for logs.
+    return error.message.split("\n")[0]?.slice(0, 200) ?? "Unknown error";
+  }
+  return String(error).slice(0, 200);
+}
+
+// Permission-check state. Cleared on app quit; we only nag the user once per
+// session so we don't spam notifications.
+let permissionCheckCompleted = false;
+let permissionNotificationShown = false;
+
 function sendOpenMeetingsIntent(payload?: {
   sourceApp?: string;
   signalKey?: string;
@@ -542,7 +573,10 @@ function extractMeetingSignalFromUrl(
     }
   }
   // Teams web: only match meeting/call URLs, not chat/files/calendar
-  else if (hostname.endsWith("teams.microsoft.com") || hostname === "teams.live.com") {
+  else if (
+    hostname.endsWith("teams.microsoft.com") ||
+    hostname === "teams.live.com"
+  ) {
     if (
       !pathname.startsWith("/l/meetup-join") &&
       !pathname.startsWith("/meet/") &&
@@ -590,17 +624,65 @@ async function getRunningProcessList(): Promise<string> {
 function detectDesktopMeetingAppFromProcesses(
   commands: string,
 ): MeetingSignal | null {
-  if (commands.includes("/zoom.us.app/contents/macos/zoom.us")) {
+  // commands is already lowercased by getRunningProcessList. Match on substrings
+  // that identify the main meeting app binary. We intentionally avoid matching
+  // helper processes alone (e.g. just "teams") because those collide with
+  // unrelated background services. Use the full executable path segment.
+  if (
+    commands.includes("/zoom.us.app/contents/macos/zoom.us") ||
+    commands.includes("/zoom workplace.app/contents/macos/zoom workplace") ||
+    commands.includes("/zoom workplace.app/contents/macos/zoom.us")
+  ) {
     return { key: "zoom-desktop", sourceApp: "Zoom" };
   }
 
   if (
     commands.includes("/microsoft teams.app/contents/macos/microsoft teams") ||
-    commands.includes("/msteams.app/contents/macos/msteams")
+    commands.includes("/msteams.app/contents/macos/msteams") ||
+    commands.includes(
+      "/microsoft teams (work or school).app/contents/macos/",
+    ) ||
+    commands.includes("/microsoft teams classic.app/contents/macos/")
   ) {
     return { key: "teams-desktop", sourceApp: "Microsoft Teams" };
   }
 
+  if (
+    commands.includes("/webex.app/contents/macos/webex") ||
+    commands.includes("/cisco webex meetings.app/contents/macos/")
+  ) {
+    return { key: "webex-desktop", sourceApp: "Webex" };
+  }
+
+  return null;
+}
+
+// Coarse heartbeat used during active capture: if ANY process that commonly
+// hosts a meeting is alive, we prefer to keep capturing rather than fire a
+// spurious "meeting ended" event. This is intentionally broader than
+// detectDesktopMeetingAppFromProcesses — it accepts web-meeting hosts too,
+// which gives us coverage when AppleScript tab queries are blocked by missing
+// Automation permission.
+//
+// Note: browsers like Chrome/Safari/Arc are excluded on purpose — they are
+// almost always running whether or not the user is in a meeting, so treating
+// them as heartbeat signal would disable the grace-period detector entirely.
+function isLikelyMeetingProcessAlive(commands: string): string | null {
+  const checks: Array<[string, string]> = [
+    ["/zoom.us.app/contents/macos/", "zoom"],
+    ["/zoom workplace.app/contents/macos/", "zoom-workplace"],
+    ["/microsoft teams.app/contents/macos/", "teams"],
+    ["/msteams.app/contents/macos/", "teams-v2"],
+    ["/microsoft teams (work or school).app/contents/macos/", "teams-work"],
+    ["/microsoft teams classic.app/contents/macos/", "teams-classic"],
+    ["/webex.app/contents/macos/", "webex"],
+    ["/cisco webex meetings.app/contents/macos/", "webex-meetings"],
+    ["/facetime.app/contents/macos/", "facetime"],
+    ["/discord.app/contents/macos/", "discord"],
+  ];
+  for (const [needle, label] of checks) {
+    if (commands.includes(needle)) return label;
+  }
   return null;
 }
 
@@ -640,15 +722,23 @@ async function detectMicrophoneUsageSignal(
 
 async function detectMeetingSignal(
   excludeMicFallback = false,
-): Promise<MeetingSignal | null> {
+): Promise<DetectionOutcome> {
+  const errors: string[] = [];
+
   // 1. Fast path: check active tab in Chrome
   try {
     const chromeUrl = await queryBrowserActiveTabUrl("Google Chrome");
     const chromeSignal = extractMeetingSignalFromUrl(chromeUrl, "Chrome");
+    detectorDebug(
+      `chrome-active-tab → ${chromeUrl ? `url=${chromeUrl.slice(0, 80)} match=${Boolean(chromeSignal)}` : "empty"}`,
+    );
     if (chromeSignal) {
-      return chromeSignal;
+      return { kind: "signal", signal: chromeSignal };
     }
   } catch (error) {
+    const reason = `chrome-active-tab: ${describeError(error)}`;
+    errors.push(reason);
+    detectorDebug(reason);
     maybeLogDetectorError(error);
   }
 
@@ -656,36 +746,50 @@ async function detectMeetingSignal(
   try {
     const safariUrl = await queryBrowserActiveTabUrl("Safari");
     const safariSignal = extractMeetingSignalFromUrl(safariUrl, "Safari");
+    detectorDebug(
+      `safari-active-tab → ${safariUrl ? `url=${safariUrl.slice(0, 80)} match=${Boolean(safariSignal)}` : "empty"}`,
+    );
     if (safariSignal) {
-      return safariSignal;
+      return { kind: "signal", signal: safariSignal };
     }
   } catch (error) {
+    const reason = `safari-active-tab: ${describeError(error)}`;
+    errors.push(reason);
+    detectorDebug(reason);
     maybeLogDetectorError(error);
   }
 
   // 3. Scan ALL tabs in Chrome for meeting URLs (catches background tabs)
   try {
     const chromeUrls = await queryBrowserMeetingTabUrls("Google Chrome");
+    detectorDebug(`chrome-all-tabs → ${chromeUrls.length} matching url(s)`);
     for (const url of chromeUrls) {
       const signal = extractMeetingSignalFromUrl(url, "Chrome");
       if (signal) {
-        return signal;
+        return { kind: "signal", signal };
       }
     }
   } catch (error) {
+    const reason = `chrome-all-tabs: ${describeError(error)}`;
+    errors.push(reason);
+    detectorDebug(reason);
     maybeLogDetectorError(error);
   }
 
   // 4. Scan ALL tabs in Safari for meeting URLs
   try {
     const safariUrls = await queryBrowserMeetingTabUrls("Safari");
+    detectorDebug(`safari-all-tabs → ${safariUrls.length} matching url(s)`);
     for (const url of safariUrls) {
       const signal = extractMeetingSignalFromUrl(url, "Safari");
       if (signal) {
-        return signal;
+        return { kind: "signal", signal };
       }
     }
   } catch (error) {
+    const reason = `safari-all-tabs: ${describeError(error)}`;
+    errors.push(reason);
+    detectorDebug(reason);
     maybeLogDetectorError(error);
   }
 
@@ -694,15 +798,21 @@ async function detectMeetingSignal(
   try {
     processList = await getRunningProcessList();
   } catch (error) {
+    const reason = `process-list: ${describeError(error)}`;
+    errors.push(reason);
+    detectorDebug(reason);
     maybeLogDetectorError(error);
   }
 
-  // 6. Check for desktop meeting apps (Zoom/Teams) by process name — this does
-  //    not depend on the mic state, so it's safe even when we're capturing.
+  // 6. Check for desktop meeting apps (Zoom/Teams/Webex) by process name —
+  //    this does not depend on the mic state, so it's safe during capture.
   if (processList) {
     const desktopSignal = detectDesktopMeetingAppFromProcesses(processList);
+    detectorDebug(
+      `desktop-process-check → ${desktopSignal ? desktopSignal.sourceApp : "no match"}`,
+    );
     if (desktopSignal) {
-      return desktopSignal;
+      return { kind: "signal", signal: desktopSignal };
     }
   }
 
@@ -713,15 +823,29 @@ async function detectMeetingSignal(
   if (!excludeMicFallback) {
     try {
       const micSignal = await detectMicrophoneUsageSignal(processList);
+      detectorDebug(
+        `mic-fallback → ${micSignal ? micSignal.sourceApp : "no mic activity"}`,
+      );
       if (micSignal) {
-        return micSignal;
+        return { kind: "signal", signal: micSignal };
       }
     } catch (error) {
+      const reason = `mic-fallback: ${describeError(error)}`;
+      errors.push(reason);
+      detectorDebug(reason);
       maybeLogDetectorError(error);
     }
   }
 
-  return null;
+  // No strategy produced a signal. Distinguish "all strategies ran cleanly
+  // but nothing matched" (kind:"none", safe to advance grace period) from
+  // "at least one strategy errored" (kind:"error", state is ambiguous and
+  // callers should not treat the absence of a signal as evidence of meeting
+  // end).
+  if (errors.length > 0) {
+    return { kind: "error", reasons: errors };
+  }
+  return { kind: "none" };
 }
 
 async function runMeetingDetectorTick() {
@@ -744,13 +868,67 @@ async function runMeetingDetectorTick() {
     // and the meeting-end detector would never fire.
     if (captureActive) {
       resetMeetingDetectionCandidate();
-      const signal = await detectMeetingSignal(true);
+      const outcome = await detectMeetingSignal(true);
       const now = Date.now();
 
-      if (signal) {
+      if (outcome.kind === "signal") {
         // Meeting signal still present — meeting still going
+        if (meetingGoneSinceMs !== 0) {
+          const secondsSinceLost = Math.round(
+            (now - meetingGoneSinceMs) / 1000,
+          );
+          console.log(
+            `[brifo][meeting-detector] Meeting signal recovered after ${secondsSinceLost}s (${outcome.signal.sourceApp}). Clearing grace period.`,
+          );
+        }
         meetingGoneSinceMs = 0;
-      } else if (meetingGoneSinceMs === 0) {
+        return;
+      }
+
+      if (outcome.kind === "error") {
+        // Detection errored (e.g. AppleScript Automation permission denied,
+        // osascript timeout, process list spawn failure). We do NOT know
+        // whether the meeting is still running, so do not advance the grace
+        // period on uncertain evidence — skip the tick entirely.
+        detectorDebug(
+          `capture tick: detection errored (${outcome.reasons.length} error(s)) — skipping tick`,
+        );
+        return;
+      }
+
+      // outcome.kind === "none" — all strategies ran cleanly and none matched.
+      // Before treating this as "meeting is gone", apply the process-heartbeat
+      // fallback: if a likely meeting-host process is alive, keep capturing.
+      // This gives us belt-and-suspenders coverage when, e.g., AppleScript
+      // runs but reports no matching tab while Zoom/Teams desktop is still up.
+      let heartbeatProcess: string | null = null;
+      try {
+        const commands = await getRunningProcessList();
+        heartbeatProcess = isLikelyMeetingProcessAlive(commands);
+      } catch (error) {
+        // If the process list itself can't be read, fall through to the
+        // grace-period logic — we already know we have no positive evidence
+        // of a meeting, so advancing the timer is acceptable.
+        detectorDebug(
+          `capture tick: process-list unavailable (${describeError(error)})`,
+        );
+      }
+
+      if (heartbeatProcess) {
+        if (meetingGoneSinceMs !== 0) {
+          console.log(
+            `[brifo][meeting-detector] No meeting signal, but "${heartbeatProcess}" process is alive — keeping capture active.`,
+          );
+        } else {
+          detectorDebug(
+            `capture tick: no direct signal, heartbeat process=${heartbeatProcess} — skip grace advance`,
+          );
+        }
+        meetingGoneSinceMs = 0;
+        return;
+      }
+
+      if (meetingGoneSinceMs === 0) {
         // Signal just disappeared — start tracking
         meetingGoneSinceMs = now;
         console.log(
@@ -779,6 +957,11 @@ async function runMeetingDetectorTick() {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send("capture:meeting-ended");
         }
+      } else {
+        const waitedSeconds = Math.round((now - meetingGoneSinceMs) / 1000);
+        detectorDebug(
+          `capture tick: signal absent for ${waitedSeconds}s (grace period ${Math.round(MEETING_GONE_STOP_DELAY_MS / 1000)}s)`,
+        );
       }
       return;
     }
@@ -788,11 +971,16 @@ async function runMeetingDetectorTick() {
 
     pruneNotificationCooldowns();
 
-    const signal = await detectMeetingSignal();
-    if (!signal) {
+    const outcome = await detectMeetingSignal();
+    if (outcome.kind !== "signal") {
+      // In the non-capture branch, "error" and "none" are both treated as
+      // "no confirmed meeting" — the worst case is we miss notifying the user
+      // of a meeting for a few seconds until detection recovers, which is
+      // preferable to a false-positive banner.
       resetMeetingDetectionCandidate();
       return;
     }
+    const { signal } = outcome;
 
     const now = Date.now();
     if (candidateKey !== signal.key) {
@@ -846,6 +1034,91 @@ function startMeetingDetector() {
   detectorTimer = setInterval(() => {
     void runMeetingDetectorTick();
   }, MEETING_DETECT_INTERVAL_MS);
+}
+
+// Verify macOS Automation permission once per session. If osascript can run
+// System Events (a permission-free query) but cannot query Google Chrome
+// (which requires Automation access for the host app), Brifo's meeting
+// detection silently fails — every capture ends with a spurious "Meeting
+// ended" notification after the grace period. Surface this to the user so
+// they can enable the toggle in System Settings.
+async function verifyAutomationPermissionOnce() {
+  if (permissionCheckCompleted) return;
+  permissionCheckCompleted = true;
+  if (process.platform !== "darwin") return;
+
+  // Step 1: baseline — does osascript work at all?
+  try {
+    await execFileAsync(
+      "osascript",
+      [
+        "-e",
+        'tell application "System Events" to return name of first process whose frontmost is true',
+      ],
+      { timeout: 2500, maxBuffer: 1024 * 1024 },
+    );
+  } catch (error) {
+    // osascript itself is broken. Not something a user-facing toggle fixes,
+    // so log and move on.
+    console.warn(
+      `[brifo][permissions] osascript baseline failed — Automation check skipped: ${describeError(error)}`,
+    );
+    return;
+  }
+
+  // Step 2: Probe Chrome. If Chrome isn't running, we can't distinguish
+  // "permission denied" from "Chrome not available" — skip the check in
+  // that case so we don't nag users who don't use Chrome.
+  let chromePermissionDenied = false;
+  try {
+    const { stdout } = await execFileAsync(
+      "osascript",
+      [
+        "-e",
+        'if application "Google Chrome" is running then tell application "Google Chrome" to return count of windows',
+      ],
+      { timeout: 2500, maxBuffer: 1024 * 1024 },
+    );
+    detectorDebug(
+      `permission probe (Chrome): ok, stdout="${stdout.trim().slice(0, 60)}"`,
+    );
+  } catch (error) {
+    const msg = describeError(error);
+    // macOS Automation denial surfaces as "Not authorized to send Apple
+    // events" or error -1743 (errAEEventNotPermitted).
+    if (
+      /not authorized/i.test(msg) ||
+      /-1743/.test(msg) ||
+      /errAEEventNotPermitted/i.test(msg)
+    ) {
+      chromePermissionDenied = true;
+      console.warn(
+        `[brifo][permissions] Chrome Automation access denied: ${msg}`,
+      );
+    } else {
+      // Some other failure (timeout, Chrome not running at probe time).
+      // Don't nag — we'll rely on the runtime logs if the user later hits
+      // the "Meeting ended" bug.
+      detectorDebug(`permission probe (Chrome): non-permission error: ${msg}`);
+    }
+  }
+
+  if (!chromePermissionDenied || permissionNotificationShown) return;
+  permissionNotificationShown = true;
+
+  if (Notification.isSupported()) {
+    const notification = new Notification({
+      title: "Brifo needs Automation access to Google Chrome",
+      body: "Open System Settings → Privacy & Security → Automation, and enable the Brifo → Google Chrome toggle. Without it, Brifo cannot detect meetings and capture will stop after about 30 seconds.",
+      silent: false,
+    });
+    notification.on("click", () => {
+      void shell.openExternal(
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
+      );
+    });
+    notification.show();
+  }
 }
 
 function stopMeetingDetector() {
@@ -1514,6 +1787,13 @@ app.whenReady().then(() => {
 
   createMainWindow();
   startMeetingDetector();
+
+  // Fire-and-forget: probe macOS Automation permission shortly after startup.
+  // Delayed slightly so the main window has a chance to load first (notification
+  // appears on top of a visible app rather than pre-launch).
+  setTimeout(() => {
+    void verifyAutomationPermissionOnce();
+  }, 5000);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

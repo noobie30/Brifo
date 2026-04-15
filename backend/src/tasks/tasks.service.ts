@@ -1093,8 +1093,7 @@ export class TasksService {
         priority: normalizePriority(item.priority),
         dueDate: normalizeDate(item.dueDate),
         acceptanceCriteria:
-          item.acceptanceCriteria.trim() ||
-          "No acceptance criteria provided.",
+          item.acceptanceCriteria.trim() || "No acceptance criteria provided.",
       })),
     );
   }

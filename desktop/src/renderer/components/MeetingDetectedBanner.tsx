@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import {
-  getAutoCaptureState,
-  startAutoCapture,
-} from "../lib/auto-capture";
+import { getAutoCaptureState, startAutoCapture } from "../lib/auto-capture";
 import { Button } from "./ui";
 
 const AUTO_DISMISS_MS = 30_000;
@@ -80,7 +77,9 @@ export function MeetingDetectedBanner() {
         return;
       }
 
-      const meetingId = signalKey ? `detected:${signalKey}` : `detected:${Date.now()}`;
+      const meetingId = signalKey
+        ? `detected:${signalKey}`
+        : `detected:${Date.now()}`;
       void startAutoCapture({
         meetingId,
         title: `${sourceApp} Meeting`,

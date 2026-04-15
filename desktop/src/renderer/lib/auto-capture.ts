@@ -95,7 +95,9 @@ const noticeListeners = new Set<
 const stopListeners = new Set<(event: AutoCaptureStopEvent) => void>();
 const calendarAutoStarted = new Set<string>();
 
-// Listen for meeting-ended signal from main process (mic released for 15s)
+// Listen for meeting-ended signal from main process. Main fires this only
+// after MEETING_GONE_STOP_DELAY_MS of no detectable meeting signal (30s) —
+// see desktop/src/main/index.ts runMeetingDetectorTick capture branch.
 try {
   window.electronAPI?.onMeetingEnded?.(() => {
     if (activeState && activeState.status === "recording") {

@@ -168,12 +168,11 @@ export class MeetingsService {
       segments,
     });
 
-    const timeoutPromise = new Promise<Record<string, string>>(
-      (_, reject) =>
-        setTimeout(
-          () => reject(new Error("Speaker resolution timed out")),
-          SPEAKER_RESOLUTION_TIMEOUT_MS,
-        ),
+    const timeoutPromise = new Promise<Record<string, string>>((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Speaker resolution timed out")),
+        SPEAKER_RESOLUTION_TIMEOUT_MS,
+      ),
     );
 
     const speakerMap = await Promise.race([speakerMapPromise, timeoutPromise]);
