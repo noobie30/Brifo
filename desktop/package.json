@@ -13,8 +13,8 @@
     "build": "npm run typecheck && npm run build:renderer && npm run build:main",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
-    "app": "npm run build && electron-builder --mac zip --publish never",
-    "app:unsigned": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac zip --publish never && codesign --deep --force --sign - release/mac-arm64/Brifo.app",
+    "app": "npm run build && electron-builder --mac dmg --publish never",
+    "app:unsigned": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --publish never",
     "pack:dir": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --publish never",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
     "lint": "npm run typecheck",
@@ -52,6 +52,7 @@
   "build": {
     "appId": "com.brifo.desktop",
     "productName": "Brifo",
+    "afterPack": "./scripts/ad-hoc-sign.cjs",
     "directories": {
       "output": "release"
     },
@@ -67,7 +68,7 @@
       "entitlements": "entitlements.mac.plist",
       "entitlementsInherit": "entitlements.mac.plist",
       "target": [
-        "zip"
+        "dmg"
       ],
       "artifactName": "${productName}-${version}-${arch}.${ext}"
     }
