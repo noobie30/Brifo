@@ -43,7 +43,7 @@ export function DropdownMenu({
         >
           {items.map((item, index) => (
             <button
-              key={index}
+              key={`${item.label}-${index}`}
               type="button"
               className={`flex w-full items-center gap-2 px-3 py-1.5 text-sm transition-colors cursor-pointer ${
                 item.variant === "danger"

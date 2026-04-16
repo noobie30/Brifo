@@ -935,7 +935,18 @@ async function runMeetingDetectorTick() {
           "[brifo][meeting-detector] Meeting signal lost during capture, watching...",
         );
       } else if (now - meetingGoneSinceMs >= MEETING_GONE_STOP_DELAY_MS) {
-        // Signal gone for MEETING_GONE_STOP_DELAY_MS — meeting likely ended
+        // Signal gone for MEETING_GONE_STOP_DELAY_MS — meeting likely ended.
+        // Re-check captureActive here because detection awaited multiple async
+        // operations above; the renderer may have sent capture:status=false in
+        // the meantime, in which case we must not fire a spurious
+        // "meeting-ended" event / notification for an already-stopped capture.
+        if (!captureActive) {
+          meetingGoneSinceMs = 0;
+          detectorDebug(
+            "capture tick: grace period elapsed but capture already stopped — skipping meeting-ended emit",
+          );
+          return;
+        }
         const delaySeconds = Math.round(MEETING_GONE_STOP_DELAY_MS / 1000);
         console.log(
           `[brifo][meeting-detector] Meeting signal gone for ${delaySeconds}s — signaling meeting end.`,
@@ -949,7 +960,8 @@ async function runMeetingDetectorTick() {
             body: "Generating notes and tasks...",
             silent: true,
           });
-          notification.on("click", () => focusOrCreateMainWindow());
+          notification.once("click", () => focusOrCreateMainWindow());
+          notification.once("close", () => notification.removeAllListeners());
           notification.show();
         }
 
@@ -1182,7 +1194,7 @@ async function startGoogleOAuthFlow({
     }
 
     server.on("request", (request, response) => {
-      void (async () => {
+      (async () => {
         const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
         if (
           requestUrl.pathname !== "/" &&
@@ -1298,7 +1310,13 @@ async function startGoogleOAuthFlow({
               : new Error("Google sign-in failed during token exchange."),
           );
         }
-      })();
+      })().catch((error) => {
+        finishWithError(
+          error instanceof Error
+            ? error
+            : new Error("Google sign-in request handler failed unexpectedly."),
+        );
+      });
     });
 
     server.on("error", () => {
@@ -1428,7 +1446,7 @@ async function startJiraDesktopAuth({
     }
 
     server.on("request", (request, response) => {
-      void (async () => {
+      (async () => {
         const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
         if (
           requestUrl.pathname !== "/" &&
@@ -1592,7 +1610,13 @@ async function startJiraDesktopAuth({
               : new Error("Jira sign-in failed during token exchange."),
           );
         }
-      })();
+      })().catch((error) => {
+        finishWithError(
+          error instanceof Error
+            ? error
+            : new Error("Jira sign-in request handler failed unexpectedly."),
+        );
+      });
     });
 
     server.on("error", () => {
@@ -1752,9 +1776,12 @@ app.whenReady().then(() => {
     startJiraDesktopAuth(payload),
   );
 
-  ipcMain.handle("auth:token:set", (_event, token: string) =>
-    setSecureToken(token),
-  );
+  ipcMain.handle("auth:token:set", (_event, token: unknown) => {
+    if (typeof token !== "string" || token.length === 0 || token.length > 8192) {
+      throw new Error("Invalid auth token payload.");
+    }
+    return setSecureToken(token);
+  });
   ipcMain.handle("auth:token:get", () => getSecureToken());
   ipcMain.handle("auth:token:clear", () => clearSecureToken());
   ipcMain.on(
@@ -1768,8 +1795,16 @@ app.whenReady().then(() => {
     },
   );
 
-  ipcMain.handle("external:open", async (_event, url: string) => {
-    const parsed = new URL(url);
+  ipcMain.handle("external:open", async (_event, url: unknown) => {
+    if (typeof url !== "string" || url.length === 0) {
+      throw new Error("external:open requires a non-empty URL string.");
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new Error("Invalid URL for external:open.");
+    }
     if (!["http:", "https:"].includes(parsed.protocol)) {
       throw new Error("Unsupported link protocol.");
     }

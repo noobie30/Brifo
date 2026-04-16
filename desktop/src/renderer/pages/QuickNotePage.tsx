@@ -49,18 +49,18 @@ export function QuickNotePage() {
   const loadDashboard = useAppStore((state) => state.loadDashboard);
   const meetingIdRef = useRef<string>("");
   const autoStartAttemptedRef = useRef(false);
-  if (!meetingIdRef.current) {
-    const signal = queryParams.get("signal")?.trim();
-    meetingIdRef.current = signal
-      ? `detected:${signal}`
+  const signalKey = queryParams.get("signal")?.trim();
+  const [quickNoteMeetingId, setQuickNoteMeetingId] = useState<string>(() => {
+    const initial = signalKey
+      ? `detected:${signalKey}`
       : `quick-note:${crypto.randomUUID()}`;
-  }
-  const quickNoteMeetingId = meetingIdRef.current;
+    meetingIdRef.current = initial;
+    return initial;
+  });
   const resolvedQuickNoteTitle = noteTitle.trim() || formatQuickNoteTitle();
   const autoStartEnabled = queryParams.get("autoStart") === "1";
   const sourceApp = queryParams.get("source")?.trim() || "Brifo Quick Note";
   const linkedMeetingId = queryParams.get("meetingId")?.trim();
-  const signalKey = queryParams.get("signal")?.trim();
   const shouldAutoGenerateAfterStop = true;
 
   useEffect(() => {
@@ -88,6 +88,7 @@ export function QuickNotePage() {
       .then((state) => {
         if (state?.meetingId && state.meetingId !== meetingIdRef.current) {
           meetingIdRef.current = state.meetingId;
+          setQuickNoteMeetingId(state.meetingId);
         }
       })
       .catch((captureError) => {
@@ -123,6 +124,7 @@ export function QuickNotePage() {
       // Server may assign a different meetingId — sync it
       if (state?.meetingId && state.meetingId !== meetingIdRef.current) {
         meetingIdRef.current = state.meetingId;
+        setQuickNoteMeetingId(state.meetingId);
       }
       setStatusText(null);
       setError(null);

@@ -20,6 +20,14 @@ export function MeetingDetectedBanner() {
   const [captureError, setCaptureError] = useState<string | null>(null);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const clearTimers = useCallback(() => {
     if (dismissTimerRef.current) {
@@ -87,9 +95,11 @@ export function MeetingDetectedBanner() {
         sourceApp,
       })
         .then(() => {
+          if (!isMountedRef.current) return;
           setCaptureStarted(true);
         })
         .catch((error) => {
+          if (!isMountedRef.current) return;
           setCaptureStarted(false);
           setCaptureError(
             error instanceof Error
@@ -178,14 +188,18 @@ export function MeetingDetectedBanner() {
                 trigger: "join",
                 sourceApp: payload.sourceApp || "Meeting App",
               })
-                .then(() => setCaptureStarted(true))
-                .catch((err) =>
+                .then(() => {
+                  if (!isMountedRef.current) return;
+                  setCaptureStarted(true);
+                })
+                .catch((err) => {
+                  if (!isMountedRef.current) return;
                   setCaptureError(
                     err instanceof Error
                       ? err.message
                       : "Unable to start capturing.",
-                  ),
-                );
+                  );
+                });
             }}
           >
             Retry

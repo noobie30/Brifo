@@ -227,7 +227,7 @@ export function MeetingPage() {
               {segments.length > 0 ? (
                 segments.map((segment, index) => (
                   <div
-                    key={`${segment.startMs}-${index}`}
+                    key={segment._id ?? `${segment.startMs}-${index}`}
                     className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2 space-y-0.5"
                   >
                     <p className="text-xs font-medium text-gray-500">

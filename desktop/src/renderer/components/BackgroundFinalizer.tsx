@@ -45,6 +45,14 @@ export function BackgroundFinalizer() {
   const [banner, setBanner] = useState<BannerState | null>(null);
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const dismiss = useCallback(() => {
     setVisible(false);
@@ -54,6 +62,7 @@ export function BackgroundFinalizer() {
 
   const showBanner = useCallback(
     (next: BannerState, autoDismissMs: number) => {
+      if (!isMountedRef.current) return;
       setBanner(next);
       setVisible(true);
       if (timerRef.current) clearTimeout(timerRef.current);

@@ -148,13 +148,16 @@ export function DocumentsPage() {
   const [isSubmittingManual, setIsSubmittingManual] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
     void listGeneratedDocuments()
       .then((result) => {
+        if (cancelled) return;
         setNotes(result);
       })
       .catch((documentsError) => {
+        if (cancelled) return;
         setNotes([]);
         setError(
           documentsError instanceof Error
@@ -163,8 +166,12 @@ export function DocumentsPage() {
         );
       })
       .finally(() => {
+        if (cancelled) return;
         setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
