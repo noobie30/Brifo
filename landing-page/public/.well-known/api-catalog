@@ -1,0 +1,47 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://api.brifo.in",
+      "service-desc": [
+        {
+          "href": "https://api.brifo.in/api/docs-json",
+          "type": "application/json",
+          "title": "Brifo API — OpenAPI 3 specification"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://api.brifo.in/api/docs",
+          "type": "text/html",
+          "title": "Brifo API — Swagger UI"
+        }
+      ],
+      "status": [
+        {
+          "href": "https://api.brifo.in/api/health",
+          "type": "application/json",
+          "title": "Brifo API health check"
+        }
+      ],
+      "service-meta": [
+        {
+          "href": "https://api.brifo.in/.well-known/oauth-protected-resource",
+          "type": "application/json",
+          "title": "OAuth 2.0 Protected Resource Metadata (RFC 9728)"
+        },
+        {
+          "href": "https://api.brifo.in/.well-known/oauth-authorization-server",
+          "type": "application/json",
+          "title": "OAuth 2.0 Authorization Server Metadata (RFC 8414)"
+        }
+      ],
+      "terms-of-service": [
+        {
+          "href": "https://brifo.in",
+          "type": "text/html",
+          "title": "Brifo homepage (terms and download)"
+        }
+      ]
+    }
+  ]
+}

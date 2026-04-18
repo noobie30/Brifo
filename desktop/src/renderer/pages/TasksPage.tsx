@@ -9,19 +9,26 @@ import {
 } from "../lib/api";
 import { useAppStore } from "../store/app-store";
 import {
-  Button,
-  Badge,
   Card,
-  Select,
-  Input,
-  Textarea,
-  Field,
-  Dialog,
+  Chip,
+  DButton,
+  EmptyInline,
+  KpiCard,
   PageHeader,
-  StatCard,
-  EmptyState,
-  Skeleton,
-} from "../components/ui";
+  PriorityDot,
+  TaskTypeChip,
+} from "../components/design";
+import {
+  IconAlertTriangle,
+  IconCheckCircle,
+  IconClock,
+  IconFilter,
+  IconMoreV,
+  IconSparkles,
+  IconTasks,
+  IconTrash,
+  IconX,
+} from "../components/icons";
 
 type SortMode = "dueDate" | "priority";
 type IssueTypeFilter = "all" | JiraIssueType;
@@ -44,56 +51,24 @@ function priorityRank(priority: JiraPriority): number {
   }
 }
 
-function trimPreview(value: string, maxLength = 180): string {
-  const clean = value.trim();
-  if (clean.length <= maxLength) {
-    return clean;
-  }
-  return `${clean.slice(0, maxLength - 1)}…`;
-}
-
 function formatRelativeLabel(value?: string): string {
-  if (!value) {
-    return "Recently updated";
-  }
-
+  if (!value) return "Recently updated";
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "Recently updated";
-  }
-
+  if (Number.isNaN(parsed.getTime())) return "Recently updated";
   const diffMs = Date.now() - parsed.getTime();
   const diffMinutes = Math.max(1, Math.round(diffMs / 60000));
-
-  if (diffMinutes < 60) {
+  if (diffMinutes < 60)
     return `${diffMinutes} min${diffMinutes === 1 ? "" : "s"} ago`;
-  }
-
   const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) {
+  if (diffHours < 24)
     return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
-  }
-
   const diffDays = Math.round(diffHours / 24);
-  if (diffDays === 1) {
-    return "Yesterday";
-  }
-
-  if (diffDays < 7) {
-    return `${diffDays} days ago`;
-  }
-
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
   return parsed.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
   });
-}
-
-function formatCompactCount(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value);
 }
 
 function createManualMeetingId() {
@@ -104,79 +79,6 @@ function createManualMeetingId() {
 
 function createDefaultManualTitle() {
   return `Manual Task Input ${new Date().toLocaleString()}`;
-}
-
-function priorityBadgeVariant(
-  priority: JiraPriority,
-): "error" | "warning" | "success" | "default" {
-  switch (priority) {
-    case "Critical":
-    case "High":
-      return "error";
-    case "Medium":
-      return "warning";
-    case "Low":
-    default:
-      return "success";
-  }
-}
-
-function TasksPageSkeleton() {
-  return (
-    <div className="space-y-6">
-      {/* Header skeleton */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <Skeleton variant="text" width={200} height={24} />
-          <Skeleton variant="text" width={360} height={16} />
-        </div>
-        <Skeleton variant="rect" width={80} height={32} />
-      </div>
-
-      {/* Stat cards skeleton */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} padding="md">
-            <div className="space-y-2">
-              <Skeleton variant="text" width={80} height={12} />
-              <Skeleton variant="text" width={48} height={28} />
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      {/* Toolbar skeleton */}
-      <div className="flex items-center justify-between">
-        <Skeleton variant="text" width={120} height={16} />
-        <div className="flex items-center gap-2">
-          <Skeleton variant="rect" width={120} height={36} />
-          <Skeleton variant="rect" width={120} height={36} />
-          <Skeleton variant="rect" width={100} height={36} />
-        </div>
-      </div>
-
-      {/* Card skeletons */}
-      <div className="space-y-3">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} padding="md">
-            <div className="flex items-start gap-4">
-              <Skeleton variant="rect" width={40} height={40} />
-              <div className="flex-1 space-y-2">
-                <Skeleton variant="text" width="60%" height={18} />
-                <Skeleton variant="text" width="90%" height={14} />
-                <div className="flex items-center gap-4 pt-1">
-                  <Skeleton variant="text" width={80} height={12} />
-                  <Skeleton variant="text" width={80} height={12} />
-                  <Skeleton variant="text" width={80} height={12} />
-                </div>
-              </div>
-              <Skeleton variant="rect" width={72} height={28} />
-            </div>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export function TasksPage() {
@@ -211,20 +113,14 @@ export function TasksPage() {
   }, [loadDashboard]);
 
   useEffect(() => {
-    if (!isCreateDialogOpen) {
-      return;
-    }
-
+    if (!isCreateDialogOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !isSubmittingManual) {
         setIsCreateDialogOpen(false);
       }
     };
-
     window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [isCreateDialogOpen, isSubmittingManual]);
 
   useEffect(() => {
@@ -237,39 +133,24 @@ export function TasksPage() {
 
   const filteredTickets = useMemo(() => {
     let list = [...tasks];
-
     if (issueTypeFilter !== "all") {
-      list = list.filter((ticket) => ticket.issueType === issueTypeFilter);
+      list = list.filter((t) => t.issueType === issueTypeFilter);
     }
-
     if (priorityFilter !== "all") {
-      list = list.filter((ticket) => ticket.priority === priorityFilter);
+      list = list.filter((t) => t.priority === priorityFilter);
     }
-
     list.sort((a, b) => {
       if (sortMode === "priority") {
-        const priorityDiff =
-          priorityRank(b.priority) - priorityRank(a.priority);
-        if (priorityDiff !== 0) {
-          return priorityDiff;
-        }
+        const diff = priorityRank(b.priority) - priorityRank(a.priority);
+        if (diff !== 0) return diff;
       }
-
-      if (a.dueDate && b.dueDate) {
-        return a.dueDate.localeCompare(b.dueDate);
-      }
-      if (a.dueDate) {
-        return -1;
-      }
-      if (b.dueDate) {
-        return 1;
-      }
-
+      if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
       const aUpdated = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
       const bUpdated = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
       return bUpdated - aUpdated;
     });
-
     return list;
   }, [issueTypeFilter, priorityFilter, sortMode, tasks]);
 
@@ -277,80 +158,29 @@ export function TasksPage() {
 
   useEffect(() => {
     const sentinel = scrollSentinelRef.current;
-    if (!sentinel) {
-      return;
-    }
-
+    if (!sentinel) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) {
-          loadMore();
-        }
+        if (entries[0]?.isIntersecting) loadMore();
       },
       { rootMargin: "200px" },
     );
-
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [loadMore, filteredTickets.length]);
 
-  const taskStats = useMemo(() => {
-    const approvedCount = tasks.filter((ticket) => ticket.approved).length;
+  const taskKpi = useMemo(() => {
+    const approvedCount = tasks.filter((t) => t.approved).length;
     const pendingCount = tasks.length - approvedCount;
     const highPriorityCount = tasks.filter(
-      (ticket) => ticket.priority === "High" || ticket.priority === "Critical",
+      (t) => t.priority === "High" || t.priority === "Critical",
     ).length;
-
-    return [
-      {
-        label: "Total Tasks",
-        value: formatCompactCount(tasks.length),
-        icon: (
-          <span
-            className="material-symbols-outlined text-lg"
-            aria-hidden="true"
-          >
-            task_alt
-          </span>
-        ),
-      },
-      {
-        label: "Needs Approval",
-        value: formatCompactCount(pendingCount),
-        icon: (
-          <span
-            className="material-symbols-outlined text-lg"
-            aria-hidden="true"
-          >
-            approval
-          </span>
-        ),
-      },
-      {
-        label: "High Priority",
-        value: formatCompactCount(highPriorityCount),
-        icon: (
-          <span
-            className="material-symbols-outlined text-lg"
-            aria-hidden="true"
-          >
-            priority_high
-          </span>
-        ),
-      },
-      {
-        label: "Approved",
-        value: formatCompactCount(approvedCount),
-        icon: (
-          <span
-            className="material-symbols-outlined text-lg"
-            aria-hidden="true"
-          >
-            check_circle
-          </span>
-        ),
-      },
-    ];
+    return {
+      total: tasks.length,
+      pending: pendingCount,
+      high: highPriorityCount,
+      approved: approvedCount,
+    };
   }, [tasks]);
 
   async function onApproveTask(taskId: string) {
@@ -362,9 +192,7 @@ export function TasksPage() {
     } catch (error) {
       await loadDashboard().catch(() => undefined);
       setApproveError(
-        error instanceof Error
-          ? error.message
-          : "Could not create Jira ticket.",
+        error instanceof Error ? error.message : "Could not create Jira ticket.",
       );
     } finally {
       setApprovingTaskId(null);
@@ -372,9 +200,7 @@ export function TasksPage() {
   }
 
   async function onDeleteTask(taskId: string) {
-    if (!confirm("Are you sure you want to delete this task?")) {
-      return;
-    }
+    if (!confirm("Delete this task?")) return;
     try {
       setDeletingTaskId(taskId);
       setApproveError(null);
@@ -399,52 +225,40 @@ export function TasksPage() {
   }
 
   function onCloseCreateDialog() {
-    if (isSubmittingManual) {
-      return;
-    }
+    if (isSubmittingManual) return;
     setIsCreateDialogOpen(false);
   }
 
   async function onSubmitManualGeneration() {
-    if (isSubmittingManual) {
-      return;
-    }
-
+    if (isSubmittingManual) return;
     const normalizedTranscript = manualTranscript.trim();
     if (!normalizedTranscript) {
-      setManualSubmitError(
-        "Paste transcript or MoM details before generating.",
-      );
+      setManualSubmitError("Paste transcript or MoM details before generating.");
       return;
     }
-
     const normalizedTitle =
       manualMeetingTitle.trim() || createDefaultManualTitle();
     const selectedOutputMode = manualOutputMode;
     const meetingId = createManualMeetingId();
-
     try {
       setIsSubmittingManual(true);
       setManualSubmitError(null);
       setApproveError(null);
-
       const generated = await generateNotes(meetingId, {
         meetingTitle: normalizedTitle,
         rawUserNotes: normalizedTranscript,
         templateUsed: "general",
         outputMode: selectedOutputMode,
       });
-
       await loadDashboard();
       setIsCreateDialogOpen(false);
-
       if (selectedOutputMode === "document") {
         navigate(`/documents/${generated.meetingId}`);
       }
-    } catch (generationError) {
+    } catch (err) {
       setManualSubmitError(
-        generationError instanceof Error
-          ? generationError.message
+        err instanceof Error
+          ? err.message
           : "Unable to generate from manual transcript.",
       );
     } finally {
@@ -452,341 +266,457 @@ export function TasksPage() {
     }
   }
 
-  if (initialLoading) {
-    return (
-      <section className="max-w-5xl mx-auto px-6 py-8">
-        <TasksPageSkeleton />
-      </section>
-    );
-  }
-
   return (
-    <section className="max-w-5xl mx-auto px-6 py-8 space-y-6">
-      {/* Page Header */}
+    <div className="flex flex-col">
       <PageHeader
-        title="Task Library"
-        subtitle="Manage, review, and refine tasks created from meetings and manual notes."
+        eyebrow="Action items"
+        title="Task library"
+        subtitle="Review, refine, and push tasks to Jira — generated from your meetings and notes."
         actions={
-          <Button variant="primary" size="md" onClick={onOpenCreateDialog}>
-            <span
-              className="material-symbols-outlined text-base"
-              aria-hidden="true"
-            >
-              add
-            </span>
-            Generate from Transcript
-          </Button>
+          <>
+            <DButton variant="default" size="sm">
+              <IconFilter width={12} height={12} />
+              More filters
+            </DButton>
+            <DButton variant="accent" size="sm" onClick={onOpenCreateDialog}>
+              <IconSparkles width={12} height={12} />
+              Generate from transcript
+            </DButton>
+          </>
         }
       />
 
-      {/* Stat Cards */}
-      <section
-        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-        aria-label="Task summary"
-      >
-        {taskStats.map((stat) => (
-          <StatCard
-            key={stat.label}
-            icon={stat.icon}
-            label={stat.label}
-            value={stat.value}
-          />
-        ))}
-      </section>
-
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-gray-700">
-          <span className="font-semibold text-gray-900">
-            {filteredTickets.length}
-          </span>{" "}
-          {filteredTickets.length === 1 ? "task in view" : "tasks in view"}
-        </p>
-
-        <div className="flex items-center gap-2">
-          <Field label="Issue Type">
-            <Select
-              value={issueTypeFilter}
-              onChange={(event) =>
-                setIssueTypeFilter(event.target.value as IssueTypeFilter)
-              }
-            >
-              <option value="all">All</option>
-              {ISSUE_TYPES.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          <Field label="Priority">
-            <Select
-              value={priorityFilter}
-              onChange={(event) =>
-                setPriorityFilter(event.target.value as PriorityFilter)
-              }
-            >
-              <option value="all">All</option>
-              {PRIORITIES.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-      </div>
-
-      {/* Task List */}
-      <div className="space-y-3">
+      <div className="px-8 pb-8 flex flex-col gap-5">
         {approveError && (
-          <div className="rounded-md bg-error-50 border border-error-200 px-4 py-3">
-            <p className="text-sm text-error-700">{approveError}</p>
+          <div
+            className="rounded-md px-4 py-3 text-[13px]"
+            style={{
+              background: "var(--color-danger-soft)",
+              color: "var(--color-danger)",
+              border: "1px solid rgba(180,35,24,0.18)",
+            }}
+          >
+            {approveError}
           </div>
         )}
 
-        {filteredTickets.length ? (
-          visibleTickets.map((ticket) => (
-            <Card
-              key={ticket._id}
-              padding="none"
-              className="group cursor-pointer transition-colors hover:bg-gray-50/50"
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate(`/tasks/${ticket._id}`)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  navigate(`/tasks/${ticket._id}`);
-                }
-              }}
-            >
-              <div className="flex items-start gap-4 p-4">
-                {/* Icon */}
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-50 text-accent-600">
-                  <span
-                    className="material-symbols-outlined text-xl"
-                    aria-hidden="true"
-                  >
-                    task_alt
-                  </span>
-                </div>
+        {/* KPI row */}
+        <div className="grid grid-cols-4 gap-3">
+          <KpiCard
+            label="Total tasks"
+            value={initialLoading ? "—" : taskKpi.total}
+            hint="All time"
+            icon={IconTasks}
+          />
+          <KpiCard
+            label="Needs approval"
+            value={initialLoading ? "—" : taskKpi.pending}
+            hint={taskKpi.pending > 0 ? "Review today" : "Inbox zero"}
+            icon={IconAlertTriangle}
+            tone="warn"
+          />
+          <KpiCard
+            label="High priority"
+            value={initialLoading ? "—" : taskKpi.high}
+            hint="Critical + High"
+            icon={IconAlertTriangle}
+          />
+          <KpiCard
+            label="Approved"
+            value={initialLoading ? "—" : taskKpi.approved}
+            hint="Pushed to Jira"
+            icon={IconCheckCircle}
+            tone="success"
+          />
+        </div>
 
-                {/* Main content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-semibold text-gray-900 truncate">
-                      {ticket.summary}
-                    </h3>
-                    <Badge
-                      variant={ticket.approved ? "success" : "accent"}
-                      size="sm"
-                    >
-                      {ticket.approved ? "Approved" : "Pending"}
-                    </Badge>
-                  </div>
+        {/* Filter bar */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-[11.5px] text-fg-muted mono">
+            <span className="font-semibold text-fg">
+              {filteredTickets.length}
+            </span>{" "}
+            {filteredTickets.length === 1 ? "task" : "tasks"} in view
+          </span>
+          <div className="flex-1" />
+          <FilterSelect
+            label="Type"
+            value={issueTypeFilter}
+            onChange={(v) => setIssueTypeFilter(v as IssueTypeFilter)}
+            options={[
+              { value: "all", label: "All" },
+              ...ISSUE_TYPES.map((t) => ({ value: t, label: t })),
+            ]}
+          />
+          <FilterSelect
+            label="Priority"
+            value={priorityFilter}
+            onChange={(v) => setPriorityFilter(v as PriorityFilter)}
+            options={[
+              { value: "all", label: "All" },
+              ...PRIORITIES.map((t) => ({ value: t, label: t })),
+            ]}
+          />
+          <FilterSelect
+            label="Sort"
+            value={sortMode}
+            onChange={(v) => setSortMode(v as SortMode)}
+            options={[
+              { value: "dueDate", label: "Due date" },
+              { value: "priority", label: "Priority" },
+            ]}
+          />
+        </div>
 
-                  <p className="text-sm text-gray-600 leading-relaxed line-clamp-2 mb-2">
-                    {trimPreview(
-                      ticket.description ||
-                        "Draft task awaiting approval and further refinement.",
-                      180,
-                    )}
-                  </p>
-
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
-                    <span className="inline-flex items-center gap-1">
-                      <span
-                        className="material-symbols-outlined text-sm text-gray-400"
-                        aria-hidden="true"
-                      >
-                        schedule
-                      </span>
-                      {formatRelativeLabel(
-                        ticket.updatedAt || ticket.createdAt,
-                      )}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <Badge
-                        variant={priorityBadgeVariant(ticket.priority)}
-                        size="sm"
-                      >
-                        {ticket.priority}
-                      </Badge>
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span
-                        className="material-symbols-outlined text-sm text-gray-400"
-                        aria-hidden="true"
-                      >
-                        sell
-                      </span>
-                      {ticket.approved && ticket.jiraIssueKey
-                        ? ticket.jiraIssueKey
-                        : `${ticket.issueType} draft`}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="shrink-0 pt-0.5 flex items-center gap-2">
-                  {ticket.approved ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (ticket.jiraIssueUrl) {
-                          window.open(
-                            ticket.jiraIssueUrl,
-                            "_blank",
-                            "noopener,noreferrer",
-                          );
-                          return;
-                        }
+        {/* Task list */}
+        <Card padding="none" className="overflow-hidden">
+          {filteredTickets.length === 0 ? (
+            <EmptyInline
+              icon={IconTasks}
+              title="No tasks yet"
+              hint="Generate tasks from a meeting transcript or a manual note."
+              cta={
+                <DButton variant="accent" size="sm" onClick={onOpenCreateDialog}>
+                  <IconSparkles width={12} height={12} />
+                  Generate from transcript
+                </DButton>
+              }
+            />
+          ) : (
+            <>
+              <div
+                className="grid px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.5px] text-fg-subtle"
+                style={{
+                  gridTemplateColumns:
+                    "28px 72px minmax(0,1fr) 90px 90px 110px 28px",
+                  background: "var(--color-subtle)",
+                  borderBottom: "1px solid var(--color-divider)",
+                }}
+              >
+                <span />
+                <span>Key</span>
+                <span>Summary</span>
+                <span>Priority</span>
+                <span>Due</span>
+                <span>Status</span>
+                <span />
+              </div>
+              {visibleTickets.map((ticket, idx) => {
+                const approving = approvingTaskId === ticket._id;
+                const deleting = deletingTaskId === ticket._id;
+                return (
+                  <div
+                    key={ticket._id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/tasks/${ticket._id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
                         navigate(`/tasks/${ticket._id}`);
-                      }}
-                    >
-                      Open
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      loading={approvingTaskId === ticket._id}
-                      disabled={approvingTaskId === ticket._id}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void onApproveTask(ticket._id);
-                      }}
-                    >
-                      {approvingTaskId === ticket._id
-                        ? "Approving..."
-                        : "Approve"}
-                    </Button>
-                  )}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    loading={deletingTaskId === ticket._id}
-                    disabled={deletingTaskId === ticket._id}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void onDeleteTask(ticket._id);
+                      }
+                    }}
+                    className="grid items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-subtle transition-colors"
+                    style={{
+                      gridTemplateColumns:
+                        "28px 72px minmax(0,1fr) 90px 90px 110px 28px",
+                      borderTop:
+                        idx > 0 ? "1px solid var(--color-divider)" : undefined,
                     }}
                   >
-                    <span
-                      className="material-symbols-outlined text-base text-error-600"
-                      aria-hidden="true"
+                    <TaskTypeChip type={ticket.issueType} />
+                    <div className="mono text-[11.5px] text-fg-muted truncate">
+                      {ticket.jiraIssueKey ?? `DRAFT-${ticket._id.slice(-4)}`}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium text-fg truncate">
+                        {ticket.summary}
+                      </div>
+                      <div className="text-[11.5px] text-fg-muted truncate">
+                        {formatRelativeLabel(
+                          ticket.updatedAt || ticket.createdAt,
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <PriorityDot priority={ticket.priority} />
+                    </div>
+                    <div className="mono text-[11.5px] text-fg-muted">
+                      {ticket.dueDate ?? "—"}
+                    </div>
+                    <div>
+                      {ticket.approved ? (
+                        <Chip tone="success">
+                          <IconCheckCircle width={11} height={11} />
+                          Synced
+                        </Chip>
+                      ) : (
+                        <Chip tone="warn">Review</Chip>
+                      )}
+                    </div>
+                    <div
+                      className="flex items-center justify-end gap-1"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      delete
-                    </span>
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))
-        ) : (
-          <Card padding="none">
-            <EmptyState
-              icon={
-                <span
-                  className="material-symbols-outlined text-4xl"
-                  aria-hidden="true"
+                      {!ticket.approved && (
+                        <DButton
+                          variant="accent"
+                          size="sm"
+                          disabled={approving}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void onApproveTask(ticket._id);
+                          }}
+                          className="!h-[24px] !px-2 !text-[11px]"
+                        >
+                          {approving ? "…" : "Approve"}
+                        </DButton>
+                      )}
+                      <button
+                        type="button"
+                        disabled={deleting}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void onDeleteTask(ticket._id);
+                        }}
+                        className="w-6 h-6 rounded-md flex items-center justify-center text-fg-subtle hover:text-danger hover:bg-subtle transition-colors cursor-pointer"
+                        title="Delete"
+                      >
+                        {deleting ? (
+                          <IconMoreV width={13} height={13} />
+                        ) : (
+                          <IconTrash width={12} height={12} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              {visibleCount < filteredTickets.length && (
+                <div
+                  ref={scrollSentinelRef}
+                  className="flex justify-center py-3 text-[12px] text-fg-subtle"
                 >
-                  task_alt
-                </span>
-              }
-              title="No tasks found"
-              description="Generate document and tasks from a note to create tasks with issue type, summary, description, ownership, priority, due date, and acceptance criteria."
-              action={{ label: "Add Transcript", onClick: onOpenCreateDialog }}
-            />
-          </Card>
-        )}
-
-        {visibleCount < filteredTickets.length && (
-          <div ref={scrollSentinelRef} className="flex justify-center py-4">
-            <span className="text-sm text-gray-400">Loading more...</span>
-          </div>
-        )}
+                  Loading more…
+                </div>
+              )}
+            </>
+          )}
+        </Card>
       </div>
 
-      {/* Create Dialog */}
-      <Dialog
-        open={isCreateDialogOpen}
-        onClose={onCloseCreateDialog}
-        title="Generate from Transcript"
-        description="Generate tasks, a document, or both from your text."
-      >
-        <div className="space-y-4">
-          <Field label="Title">
-            <Input
-              type="text"
-              value={manualMeetingTitle}
-              onChange={(event) => setManualMeetingTitle(event.target.value)}
-              placeholder="Weekly planning meeting"
-              disabled={isSubmittingManual}
-            />
-          </Field>
+      {isCreateDialogOpen && (
+        <GenerateDialog
+          title="Generate from transcript"
+          subtitle="Generate tasks, a document, or both from your text."
+          meetingTitle={manualMeetingTitle}
+          onMeetingTitleChange={setManualMeetingTitle}
+          transcript={manualTranscript}
+          onTranscriptChange={setManualTranscript}
+          outputMode={manualOutputMode}
+          onOutputModeChange={setManualOutputMode}
+          error={manualSubmitError}
+          submitting={isSubmittingManual}
+          onClose={onCloseCreateDialog}
+          onSubmit={() => void onSubmitManualGeneration()}
+        />
+      )}
+    </div>
+  );
+}
 
-          <Field label="Generate">
-            <Select
-              value={manualOutputMode}
-              onChange={(event) =>
-                setManualOutputMode(event.target.value as NoteOutputMode)
+// ————— Small helpers —————
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-[11.5px] text-fg-muted">
+      <span>{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="brifo-input"
+        style={{ height: 28, width: 130, fontSize: 12, padding: "0 8px" }}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function GenerateDialog({
+  title,
+  subtitle,
+  meetingTitle,
+  onMeetingTitleChange,
+  transcript,
+  onTranscriptChange,
+  outputMode,
+  onOutputModeChange,
+  error,
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  title: string;
+  subtitle: string;
+  meetingTitle: string;
+  onMeetingTitleChange: (v: string) => void;
+  transcript: string;
+  onTranscriptChange: (v: string) => void;
+  outputMode: NoteOutputMode;
+  onOutputModeChange: (v: NoteOutputMode) => void;
+  error: string | null;
+  submitting: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      style={{
+        background: "rgba(20,19,14,0.45)",
+        backdropFilter: "blur(4px)",
+        animation: "fade-in 140ms ease-out",
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="brifo-card w-full"
+        style={{
+          maxWidth: 560,
+          animation: "modal-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+          boxShadow: "var(--shadow-lg)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-start gap-3 px-5 pt-5 pb-4"
+          style={{ borderBottom: "1px solid var(--color-divider)" }}
+        >
+          <div
+            className="flex items-center justify-center"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: "var(--color-accent-soft)",
+              color: "var(--color-accent)",
+            }}
+          >
+            <IconSparkles width={16} height={16} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[15px] font-semibold text-fg">{title}</div>
+            <div className="text-[12.5px] text-fg-muted mt-0.5">{subtitle}</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 rounded-md flex items-center justify-center text-fg-subtle hover:bg-subtle cursor-pointer"
+            aria-label="Close"
+          >
+            <IconX width={13} height={13} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 flex flex-col gap-3.5">
+          <label className="flex flex-col gap-1.5">
+            <span className="eyebrow">Title</span>
+            <input
+              className="brifo-input"
+              value={meetingTitle}
+              onChange={(e) => onMeetingTitleChange(e.target.value)}
+              placeholder="Untitled note"
+              disabled={submitting}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="eyebrow">Generate</span>
+            <select
+              className="brifo-input"
+              value={outputMode}
+              onChange={(e) =>
+                onOutputModeChange(e.target.value as NoteOutputMode)
               }
-              disabled={isSubmittingManual}
+              disabled={submitting}
             >
               <option value="tasks">Tasks</option>
               <option value="document">Document</option>
-              <option value="both">Document + Tasks</option>
-            </Select>
-          </Field>
+              <option value="both">Tasks + Document</option>
+            </select>
+          </label>
 
-          <Field label="Manual Transcript or MoM">
-            <Textarea
-              rows={9}
-              value={manualTranscript}
-              onChange={(event) => setManualTranscript(event.target.value)}
-              placeholder="Paste transcript or minutes of meeting..."
-              disabled={isSubmittingManual}
+          <label className="flex flex-col gap-1.5">
+            <span className="eyebrow">Transcript</span>
+            <textarea
+              className="brifo-input"
+              style={{ minHeight: 160 }}
+              value={transcript}
+              onChange={(e) => onTranscriptChange(e.target.value)}
+              placeholder="Paste transcript or minutes of meeting…"
+              disabled={submitting}
             />
-          </Field>
+          </label>
 
-          {manualSubmitError && (
-            <div className="rounded-md bg-error-50 border border-error-200 px-4 py-3">
-              <p className="text-sm text-error-700">{manualSubmitError}</p>
+          <div
+            className="flex items-start gap-2 rounded-md px-3 py-2.5 text-[11.5px] text-fg-muted"
+            style={{ background: "var(--color-subtle)" }}
+          >
+            <IconSparkles width={12} height={12} />
+            Brifo infers issue types, owners and due dates from your text.
+            You can still edit everything afterwards.
+          </div>
+
+          {error && (
+            <div
+              className="rounded-md px-3 py-2.5 text-[12px]"
+              style={{
+                background: "var(--color-danger-soft)",
+                color: "var(--color-danger)",
+                border: "1px solid rgba(180,35,24,0.18)",
+              }}
+            >
+              {error}
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-100 mt-4">
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={onCloseCreateDialog}
-            disabled={isSubmittingManual}
-          >
+        <div
+          className="flex items-center gap-2 px-5 py-3"
+          style={{ borderTop: "1px solid var(--color-divider)" }}
+        >
+          <span className="text-[11px] text-fg-subtle mono">
+            {transcript.length.toLocaleString()} chars
+          </span>
+          <div className="flex-1" />
+          <DButton variant="default" onClick={onClose} disabled={submitting}>
             Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            loading={isSubmittingManual}
-            onClick={() => void onSubmitManualGeneration()}
-            disabled={isSubmittingManual}
-          >
-            <span
-              className="material-symbols-outlined text-base"
-              aria-hidden="true"
-            >
-              auto_awesome
-            </span>
-            {isSubmittingManual ? "Generating..." : "Generate"}
-          </Button>
+          </DButton>
+          <DButton variant="accent" onClick={onSubmit} disabled={submitting}>
+            <IconClock
+              width={12}
+              height={12}
+              style={{ display: submitting ? "inline-block" : "none" }}
+            />
+            {submitting ? "Generating…" : "Generate"}
+          </DButton>
         </div>
-      </Dialog>
-    </section>
+      </div>
+    </div>
   );
 }

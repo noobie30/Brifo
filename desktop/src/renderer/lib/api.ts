@@ -9,22 +9,42 @@ import {
   TranscriptSegmentRecord,
 } from "../types";
 
+// Lazy hook into the Zustand store. We cannot import the store directly
+// here — the store imports from this file, so it would be a circular
+// import. Instead, the app wires the getter at startup via
+// wireAppStore() and the 401 interceptor uses it to trigger a logout.
+type AppStoreSnapshot = {
+  user: unknown;
+  handleExpiredSession: () => void;
+};
+let getAppStoreState: (() => AppStoreSnapshot) | null = null;
+
+export function wireAppStore(getter: () => AppStoreSnapshot): void {
+  getAppStoreState = getter;
+}
+
 const envApiUrl = import.meta.env.VITE_API_URL?.trim();
 const envApiUrls = import.meta.env.VITE_API_URLS?.trim();
 
-const candidateApiUrls = [
-  ...(envApiUrl ? [envApiUrl] : []),
-  ...(envApiUrls
-    ? envApiUrls
-        .split(",")
-        .map((url: string) => url.trim())
-        .filter(Boolean)
-    : []),
-  "http://localhost:3001/api",
-  "http://127.0.0.1:3001/api",
-  "http://localhost:3000/api",
-  "http://127.0.0.1:3000/api",
-].filter((value, index, arr) => arr.indexOf(value) === index);
+// When VITE_API_URL is explicitly configured (production / packaged builds)
+// use ONLY that URL. Falling back to localhost on a transient network blip
+// silently flips users onto a different database — at best "can't connect",
+// at worst stale/wrong data visible to the user. Localhost candidates are
+// only appended when no URL is configured at all (pure-local dev).
+const candidateApiUrls = envApiUrl
+  ? [envApiUrl]
+  : [
+      ...(envApiUrls
+        ? envApiUrls
+            .split(",")
+            .map((url: string) => url.trim())
+            .filter(Boolean)
+        : []),
+      "http://localhost:3001/api",
+      "http://127.0.0.1:3001/api",
+      "http://localhost:3000/api",
+      "http://127.0.0.1:3000/api",
+    ].filter((value, index, arr) => arr.indexOf(value) === index);
 
 let activeApiUrl = candidateApiUrls[0];
 
@@ -100,6 +120,24 @@ api.interceptors.response.use(
       return Promise.reject(
         new Error(
           `Cannot connect to Brifo API. Start backend (npm run dev --workspace backend). Attempted: ${attempted}`,
+        ),
+      );
+    }
+
+    if (error?.response?.status === 401) {
+      // Bearer token is missing, invalid, or expired. Surface a
+      // session-expired notice through the store — ProtectedLayout
+      // redirects to /login once `user` becomes null. Guard on the
+      // current user so we don't spam the notice on repeat 401s
+      // (e.g. parallel in-flight requests during logout).
+      const state = getAppStoreState?.();
+      if (state?.user) {
+        state.handleExpiredSession();
+      }
+      return Promise.reject(
+        new Error(
+          error?.response?.data?.message ??
+            "Your session expired. Please sign in again.",
         ),
       );
     }

@@ -10,9 +10,70 @@
       "has": [{ "type": "host", "value": "api.brifo.in" }],
       "destination": "/api/:path*"
     },
+    {
+      "source": "/",
+      "has": [
+        { "type": "header", "key": "accept", "value": ".*text/markdown.*" }
+      ],
+      "destination": "/index.md"
+    },
     { "source": "/api", "destination": "/api" },
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Link",
+          "value": "</.well-known/api-catalog>; rel=\"api-catalog\"; type=\"application/linkset+json\", </.well-known/agent-skills/index.json>; rel=\"https://agentskills.io/rel/index\"; type=\"application/json\", </llms.txt>; rel=\"llms-txt\"; type=\"text/plain\", </index.md>; rel=\"alternate\"; type=\"text/markdown\", <https://api.brifo.in/api/docs>; rel=\"service-doc\"; type=\"text/html\", <https://api.brifo.in/api/docs-json>; rel=\"service-desc\"; type=\"application/json\""
+        },
+        { "key": "Vary", "value": "Accept" }
+      ]
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "header", "key": "accept", "value": ".*text/markdown.*" }
+      ],
+      "headers": [
+        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/index.md",
+      "headers": [
+        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
+        { "key": "Vary", "value": "Accept" }
+      ]
+    },
+    {
+      "source": "/.well-known/api-catalog",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/linkset+json; charset=utf-8"
+        },
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Cache-Control", "value": "public, max-age=300" }
+      ]
+    },
+    {
+      "source": "/.well-known/agent-skills/index.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json; charset=utf-8" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Cache-Control", "value": "public, max-age=300" }
+      ]
+    },
+    {
+      "source": "/.well-known/agent-skills/(.*).md",
+      "headers": [
+        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    }
   ],
   "functions": {
     "api/index.js": {

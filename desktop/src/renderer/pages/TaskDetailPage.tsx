@@ -3,22 +3,24 @@ import { useNavigate, useParams } from "react-router-dom";
 import { listGeneratedDocuments } from "../lib/api";
 import { useAppStore } from "../store/app-store";
 import {
-  Button,
-  Badge,
   Card,
-  Breadcrumbs,
-  EmptyState,
-  Skeleton,
-} from "../components/ui";
+  Chip,
+  DButton,
+  Eyebrow,
+  PriorityDot,
+  TaskTypeChip,
+} from "../components/design";
+import {
+  IconArrowLeft,
+  IconCheck,
+  IconJira,
+  IconSparkles,
+} from "../components/icons";
 
 function formatDueDate(value: string | null): string {
-  if (!value) {
-    return "No due date";
-  }
+  if (!value) return "No due date";
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
+  if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -26,16 +28,28 @@ function formatDueDate(value: string | null): string {
   });
 }
 
-const priorityVariant: Record<
-  string,
-  "default" | "error" | "warning" | "success" | "accent"
-> = {
-  highest: "error",
-  high: "error",
-  medium: "warning",
-  low: "success",
-  lowest: "default",
-};
+function SideField({
+  label,
+  value,
+}: {
+  label: React.ReactNode;
+  value: React.ReactNode;
+}) {
+  return (
+    <div
+      className="flex items-center gap-3 py-2 text-[12px]"
+      style={{ borderTop: "1px solid var(--color-divider)" }}
+    >
+      <span
+        className="text-fg-subtle font-semibold uppercase tracking-[0.4px]"
+        style={{ fontSize: 10.5, minWidth: 88 }}
+      >
+        {label}
+      </span>
+      <span className="flex-1 text-fg-2 truncate">{value}</span>
+    </div>
+  );
+}
 
 export function TaskDetailPage() {
   const navigate = useNavigate();
@@ -69,7 +83,6 @@ export function TaskDetailPage() {
       setDocumentMeetingTitle(null);
       return;
     }
-
     let isActive = true;
     void listGeneratedDocuments()
       .then((documents) => {
@@ -83,7 +96,6 @@ export function TaskDetailPage() {
         if (!isActive) return;
         setDocumentMeetingTitle(null);
       });
-
     return () => {
       isActive = false;
     };
@@ -91,138 +103,231 @@ export function TaskDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto space-y-4">
-        <Skeleton width={120} />
-        <Skeleton height={32} className="w-full" />
-        <Card>
-          <div className="space-y-4">
-            <Skeleton height={20} className="w-3/4" />
-            <Skeleton height={16} className="w-1/2" />
-            <Skeleton height={16} className="w-2/3" />
-            <Skeleton height={80} className="w-full" />
+      <div className="px-8 py-10 text-[13px] text-fg-subtle">Loading…</div>
+    );
+  }
+
+  if (!taskId || !task) {
+    return (
+      <div className="max-w-md mx-auto mt-16 px-6">
+        <Card padding="lg">
+          <div className="text-[15px] font-semibold text-fg">
+            Task not found
+          </div>
+          <p className="mt-1 text-[12.5px] text-fg-muted">
+            This task is not available in your workspace.
+          </p>
+          <div className="mt-4">
+            <DButton variant="accent" onClick={() => navigate("/tasks")}>
+              <IconArrowLeft width={12} height={12} />
+              Back to tasks
+            </DButton>
           </div>
         </Card>
       </div>
     );
   }
 
-  if (!taskId || !task) {
-    return (
-      <div className="max-w-2xl mx-auto">
-        <EmptyState
-          icon={<span className="material-symbols-rounded">search_off</span>}
-          title="Task not found"
-          description="This task is not available in your workspace."
-          action={{ label: "Back to Tasks", onClick: () => navigate("/tasks") }}
-        />
-      </div>
-    );
-  }
+  const acceptanceLines = task.acceptanceCriteria
+    ? task.acceptanceCriteria
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <Breadcrumbs
-        className="mb-4"
-        items={[
-          { label: "Tasks", onClick: () => navigate("/tasks") },
-          { label: task.summary },
-        ]}
-      />
+    <div className="flex flex-col">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 px-8 pt-5">
+        <button
+          type="button"
+          onClick={() => navigate("/tasks")}
+          className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted hover:text-fg cursor-pointer"
+        >
+          <IconArrowLeft width={12} height={12} />
+          Task library
+        </button>
+        <span className="text-[12px] text-fg-subtle">/</span>
+        <span className="text-[12px] mono text-fg-subtle">
+          {task.jiraIssueKey ?? `DRAFT-${task._id.slice(-4)}`}
+        </span>
+      </div>
 
-      <Card padding="lg">
-        <div className="flex items-center gap-2 mb-4">
-          <Badge variant="accent">{task.issueType}</Badge>
-          <Badge
-            variant={priorityVariant[task.priority.toLowerCase()] ?? "default"}
-          >
-            {task.priority}
-          </Badge>
-        </div>
+      <div
+        className="px-8 pt-4 pb-8 grid gap-6 max-w-6xl mx-auto w-full"
+        style={{ gridTemplateColumns: "minmax(0,1fr) 300px" }}
+      >
+        {/* Main */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <TaskTypeChip type={task.issueType} size={20} />
+            <Chip>{task.issueType}</Chip>
+            <span className="mono text-[11.5px] text-fg-muted">
+              {task.jiraIssueKey ?? `DRAFT-${task._id.slice(-4)}`}
+            </span>
+            {task.approved ? (
+              <Chip tone="success">
+                <IconCheck width={11} height={11} />
+                Synced
+              </Chip>
+            ) : (
+              <Chip tone="warn">Needs approval</Chip>
+            )}
+            {(meeting?.title || documentMeetingTitle) && (
+              <span className="text-[11.5px] text-fg-muted">
+                Generated from{" "}
+                <button
+                  type="button"
+                  onClick={() => navigate(`/documents/${task.meetingId}`)}
+                  className="hover:text-fg cursor-pointer"
+                  style={{ color: "var(--color-accent)" }}
+                >
+                  {meeting?.title || documentMeetingTitle}
+                </button>
+              </span>
+            )}
+          </div>
 
-        <div className="flex items-start gap-2.5 mb-6">
-          <span
-            className="material-symbols-rounded text-gray-400 text-xl mt-0.5"
-            aria-hidden
-          >
-            task_alt
-          </span>
-          <h1 className="text-xl font-semibold text-gray-900">
+          <h1 className="text-[26px] font-semibold tracking-[-0.5px] text-fg m-0">
             {task.summary}
           </h1>
-        </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-          <div>
-            <span className="text-gray-400 text-xs font-medium uppercase tracking-wide">
-              Assignee
-            </span>
-            <p className="text-gray-800 mt-0.5">
-              {task.assigneeId || "Unassigned"}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-400 text-xs font-medium uppercase tracking-wide">
-              Reporter
-            </span>
-            <p className="text-gray-800 mt-0.5">{task.reporterId || "Auto"}</p>
-          </div>
-          <div>
-            <span className="text-gray-400 text-xs font-medium uppercase tracking-wide">
-              Due Date
-            </span>
-            <p className="text-gray-800 mt-0.5">
-              {formatDueDate(task.dueDate)}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-400 text-xs font-medium uppercase tracking-wide">
-              Linked Meeting
-            </span>
-            <p className="text-gray-800 mt-0.5">
-              {meeting?.title || documentMeetingTitle || "Not linked"}
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-4 mb-6">
-          <div>
-            <h3 className="text-xs font-medium uppercase tracking-wide text-gray-400 mb-1.5">
-              Description
-            </h3>
-            <p className="text-sm text-gray-700 leading-relaxed">
+          <section className="mt-6">
+            <Eyebrow className="mb-2">Description</Eyebrow>
+            <p className="text-[14.5px] leading-[1.65] text-fg-2">
               {task.description || "No description provided."}
             </p>
-          </div>
+          </section>
 
-          <div>
-            <h3 className="text-xs font-medium uppercase tracking-wide text-gray-400 mb-1.5">
-              Acceptance Criteria
-            </h3>
-            <pre className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap font-sans">
-              {task.acceptanceCriteria || "No acceptance criteria provided."}
-            </pre>
+          {acceptanceLines.length > 0 && (
+            <section className="mt-6">
+              <Eyebrow className="mb-2">Acceptance criteria</Eyebrow>
+              <ul className="flex flex-col gap-1.5">
+                {acceptanceLines.map((line, index) => (
+                  <li
+                    key={index}
+                    className="flex items-start gap-2 text-[13.5px] text-fg-2 leading-[1.6]"
+                  >
+                    <span
+                      className="inline-flex items-center justify-center rounded flex-shrink-0 mt-[3px]"
+                      style={{
+                        width: 16,
+                        height: 16,
+                        border: "1px solid var(--color-border-strong)",
+                        background: "var(--color-surface)",
+                      }}
+                    />
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <section className="mt-6">
+            <Eyebrow className="mb-2">Transcript context</Eyebrow>
+            <div
+              className="rounded-md px-3.5 py-3 text-[13px] italic text-fg-2 leading-[1.65]"
+              style={{
+                background: "var(--color-surface)",
+                borderLeft: "3px solid var(--color-accent)",
+                border: "1px solid var(--color-border)",
+              }}
+            >
+              {meeting?.title
+                ? `Linked to "${meeting.title}". Open the source document for the original discussion.`
+                : "Linked meeting context not available."}
+            </div>
+          </section>
+
+          <div
+            className="mt-7 pt-4 flex items-center gap-2 flex-wrap"
+            style={{ borderTop: "1px solid var(--color-divider)" }}
+          >
+            {!task.approved && (
+              <DButton variant="accent">
+                <IconJira width={13} height={13} />
+                Approve & push to Jira
+              </DButton>
+            )}
+            <DButton
+              variant="default"
+              onClick={() =>
+                navigate(`/documents/${encodeURIComponent(task.meetingId)}`)
+              }
+            >
+              Open document
+            </DButton>
+            <DButton variant="default" onClick={() => navigate("/meetings")}>
+              Open meetings
+            </DButton>
+            <div className="flex-1" />
+            <DButton variant="danger">Discard</DButton>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 pt-4 border-t border-gray-100">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() =>
-              navigate(`/documents/${encodeURIComponent(task.meetingId)}`)
-            }
-          >
-            Open Document
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/meetings")}
-          >
-            Open Meetings
-          </Button>
-        </div>
-      </Card>
+        {/* Sidebar */}
+        <aside
+          className="flex flex-col gap-3"
+          style={{ position: "sticky", top: 0, alignSelf: "start" }}
+        >
+          <Card padding="md">
+            <Eyebrow className="mb-2">Jira fields</Eyebrow>
+            <SideField
+              label="Issue type"
+              value={<Chip tone="accent">{task.issueType}</Chip>}
+            />
+            <SideField
+              label="Priority"
+              value={<PriorityDot priority={task.priority} />}
+            />
+            <SideField
+              label="Assignee"
+              value={task.assigneeId || "Unassigned"}
+            />
+            <SideField label="Reporter" value={task.reporterId || "Auto"} />
+            <SideField label="Due date" value={formatDueDate(task.dueDate)} />
+            <SideField
+              label="Issue key"
+              value={task.jiraIssueKey ?? "— (draft)"}
+            />
+          </Card>
+
+          {!task.approved && (
+            <Card padding="md">
+              <Eyebrow className="mb-2">Confidence</Eyebrow>
+              <div className="text-[22px] font-semibold text-fg num">
+                87%
+              </div>
+              <div className="text-[11.5px] text-fg-muted mt-1 leading-[1.5]">
+                Based on transcript specificity and prior decisions.
+              </div>
+              <div
+                className="mt-3 h-1.5 rounded-full overflow-hidden"
+                style={{ background: "var(--color-subtle)" }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: "87%", background: "var(--color-accent)" }}
+                />
+              </div>
+            </Card>
+          )}
+
+          <Card padding="md">
+            <Eyebrow className="mb-2">Suggested edits</Eyebrow>
+            <div className="flex items-start gap-2 text-[12px] text-fg-muted leading-[1.55]">
+              <IconSparkles
+                width={12}
+                height={12}
+                style={{ color: "var(--color-accent)" }}
+              />
+              Brifo can regenerate acceptance criteria from the transcript if
+              you edit the summary.
+            </div>
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }

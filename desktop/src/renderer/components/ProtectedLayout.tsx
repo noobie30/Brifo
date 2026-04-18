@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, useNavigate } from "react-router-dom";
 import { BackgroundFinalizer } from "./BackgroundFinalizer";
 import { Sidebar } from "./Sidebar";
 import { MeetingDetectedBanner } from "./MeetingDetectedBanner";
@@ -11,36 +11,7 @@ import {
   shouldAutoStartForCalendarEvent,
 } from "../lib/auto-capture";
 
-function getPageTitle(pathname: string) {
-  if (pathname.startsWith("/home")) {
-    return "Dashboard";
-  }
-  if (pathname.startsWith("/meetings")) {
-    return "Meetings";
-  }
-  if (pathname.startsWith("/quick-note")) {
-    return "Quick Note";
-  }
-  if (pathname.startsWith("/documents")) {
-    return "Documents";
-  }
-  if (pathname.startsWith("/tasks")) {
-    return "Tasks";
-  }
-  if (pathname.startsWith("/settings")) {
-    return "Settings";
-  }
-  if (pathname.startsWith("/meeting/") && pathname.endsWith("/review")) {
-    return "Post-meeting Workspace";
-  }
-  if (pathname.startsWith("/meeting/")) {
-    return "Capture Meeting";
-  }
-  return "Brifo";
-}
-
 export function ProtectedLayout() {
-  const location = useLocation();
   const navigate = useNavigate();
   const user = useAppStore((state) => state.user);
   const upcomingEvents = useAppStore((state) => state.upcomingEvents);
@@ -110,24 +81,19 @@ export function ProtectedLayout() {
     return <Navigate to="/login" replace />;
   }
 
-  const pageTitle = getPageTitle(location.pathname);
-
   return (
     <>
       <BackgroundFinalizer />
       <MeetingDetectedBanner />
-      <div className="flex h-screen overflow-hidden bg-gray-50">
+      <div
+        className="flex h-screen overflow-hidden"
+        style={{ background: "var(--color-canvas)" }}
+      >
         <Sidebar />
 
-        <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center h-12 px-6 border-b border-gray-200 bg-white shrink-0">
-            <h2 className="text-sm font-semibold text-gray-800">{pageTitle}</h2>
-          </header>
-
-          <main className="flex-1 overflow-y-auto p-6">
-            <Outlet />
-          </main>
-        </div>
+        <main className="flex-1 min-w-0 overflow-y-auto scroll">
+          <Outlet />
+        </main>
       </div>
     </>
   );

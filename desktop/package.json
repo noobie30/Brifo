@@ -1,6 +1,6 @@
 {
   "name": "@brifo/desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Brifo Mac desktop app",
   "author": "Brifo",
@@ -70,7 +70,16 @@
       "target": [
         "dmg"
       ],
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Brifo needs your microphone to listen during meetings and turn the audio into notes. Transcription runs on Brifo's server; raw audio is not stored.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "Brifo Auth Callback",
+            "CFBundleURLSchemes": ["brifo"]
+          }
+        ]
+      }
     }
   }
 }

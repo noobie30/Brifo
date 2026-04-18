@@ -15,10 +15,39 @@ import {
   waitForTranscriptStability,
 } from "../lib/finalize-capture";
 import { useAppStore } from "../store/app-store";
-import { Button, Dialog } from "../components/ui";
+import { Dialog } from "../components/ui";
 import { PermissionErrorBanner } from "../components/PermissionErrorBanner";
+import { DButton } from "../components/design";
+import {
+  IconArrowLeft,
+  IconCheckCircle,
+  IconClock,
+  IconMic,
+  IconSparkles,
+  IconStop,
+  IconTrash,
+} from "../components/icons";
 
 const QUICK_NOTE_DRAFT_KEY = "brifo_quick_note_draft_v1";
+const LOADING_MESSAGE_ROTATE_MS = 2500;
+
+const TRANSCRIBING_MESSAGES = [
+  "Processing transcript…",
+  "Untangling the audio…",
+  "Lining up the words…",
+  "Catching the last few syllables…",
+  "Tidying up speakers…",
+];
+
+const GENERATING_MESSAGES = [
+  "Generating document & tasks…",
+  "Pulling out the key points…",
+  "Drafting the summary…",
+  "Finding action items…",
+  "Connecting the dots…",
+  "Polishing the wording…",
+  "Almost there…",
+];
 
 function formatQuickNoteTitle() {
   const now = new Date();
@@ -46,6 +75,7 @@ export function QuickNotePage() {
   >("idle");
   const [statusText, setStatusText] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const loadDashboard = useAppStore((state) => state.loadDashboard);
   const meetingIdRef = useRef<string>("");
   const autoStartAttemptedRef = useRef(false);
@@ -68,6 +98,17 @@ export function QuickNotePage() {
   }, [draft]);
 
   useEffect(() => subscribeAutoCapture(setCaptureState), []);
+
+  useEffect(() => {
+    if (finalizePhase === "idle") {
+      setLoadingMessageIndex(0);
+      return;
+    }
+    const interval = window.setInterval(() => {
+      setLoadingMessageIndex((prev) => prev + 1);
+    }, LOADING_MESSAGE_ROTATE_MS);
+    return () => window.clearInterval(interval);
+  }, [finalizePhase]);
 
   useEffect(() => {
     if (!autoStartEnabled || autoStartAttemptedRef.current) {
@@ -190,21 +231,20 @@ export function QuickNotePage() {
       setFinalizePhase("idle");
       if (autoGenerate) {
         setFinalizePhase("generating");
-        const generated = await generateNotes(quickNoteMeetingId, {
+        await generateNotes(quickNoteMeetingId, {
           meetingTitle: resolvedQuickNoteTitle,
           rawUserNotes: mergedNotes || undefined,
           templateUsed: "general",
         });
         await loadDashboard();
         setFinalizePhase("idle");
-        setStatusText(
-          generated.actionItems.length > 0
-            ? "Transcript added. Document and Jira tickets generated."
-            : "Transcript added. Document generated.",
-        );
-      } else {
-        setStatusText("Transcript added to notes.");
+        setDraft("");
+        localStorage.removeItem(QUICK_NOTE_DRAFT_KEY);
+        setError(null);
+        navigate(`/documents/${quickNoteMeetingId}`);
+        return;
       }
+      setStatusText("Transcript added to notes.");
       setError(null);
     } catch (finalizeError) {
       setFinalizePhase("idle");
@@ -237,95 +277,114 @@ export function QuickNotePage() {
     }
   }
 
+  const isBusy =
+    finalizePhase !== "idle" || captureState?.status === "stopping";
   const captureLabel =
     finalizePhase === "generating"
-      ? "Creating notes..."
+      ? "Creating notes…"
       : finalizePhase === "transcribing" || captureState?.status === "stopping"
-        ? "Transcribing..."
+        ? "Transcribing…"
         : captureState
-          ? "Capturing..."
-          : "Start";
-
-  const captureIcon =
-    finalizePhase === "generating"
-      ? "auto_awesome"
-      : finalizePhase === "transcribing" || captureState?.status === "stopping"
-        ? "hourglass_top"
-        : captureState
-          ? "stop"
-          : "mic";
-
-  const captureBtnClass =
-    finalizePhase === "generating" ||
-    finalizePhase === "transcribing" ||
-    captureState?.status === "stopping"
-      ? "bg-warning-500 hover:bg-warning-600 text-white"
-      : captureState
-        ? "bg-slate-900 hover:bg-slate-800 text-white"
-        : "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300";
+          ? "Stop recording"
+          : "Start recording";
 
   return (
-    <section className="flex flex-col h-full bg-white">
-      {/* Header */}
-      <div className="flex items-center px-6 py-2.5 border-b border-gray-100">
-        <Button
+    <div className="flex flex-col h-full">
+      {/* Top bar */}
+      <div
+        className="flex items-center gap-2 px-6 py-2.5"
+        style={{ borderBottom: "1px solid var(--color-divider)" }}
+      >
+        <DButton
           variant="ghost"
           size="sm"
           onClick={() => navigate("/home")}
           aria-label="Back to dashboard"
         >
-          <span className="material-symbols-outlined">arrow_back</span>
-        </Button>
+          <IconArrowLeft width={13} height={13} />
+          Back
+        </DButton>
+        <div className="flex-1" />
+        {captureState && !isBusy && (
+          <span className="inline-flex items-center gap-1.5 text-[11.5px] text-danger">
+            <span
+              className="inline-block rounded-full animate-pulse"
+              style={{
+                width: 8,
+                height: 8,
+                background: "var(--color-danger)",
+              }}
+            />
+            Recording — mic only
+          </span>
+        )}
       </div>
 
-      {/* Editor shell */}
-      <article className="flex flex-col flex-1 min-h-0 px-8 py-5 max-w-3xl mx-auto w-full">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <input
-            className="flex-1 border-none text-lg font-semibold bg-transparent placeholder:text-gray-300 focus:outline-none tracking-tight"
-            value={noteTitle}
-            onChange={(event) => setNoteTitle(event.target.value)}
-            placeholder="Quick Note"
-            aria-label="Note title"
-          />
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className={`inline-flex items-center gap-1.5 px-3 h-8 rounded text-sm font-medium transition-all duration-150 shadow-sm hover:shadow-md disabled:opacity-50 disabled:pointer-events-none ${captureBtnClass}`}
-              onClick={() => void onToggleCapture()}
-              disabled={finalizePhase !== "idle"}
-            >
-              <span className="material-symbols-outlined text-base">
-                {captureIcon}
-              </span>
-              {captureLabel}
-            </button>
-            <Button
-              variant="dangerOutline"
-              size="sm"
-              onClick={() => setShowDeleteConfirm(true)}
-              disabled={finalizePhase !== "idle"}
-            >
-              <span className="material-symbols-outlined text-base">
-                delete
-              </span>
-              Delete
-            </Button>
-          </div>
+      {/* Editor */}
+      <article className="flex flex-col flex-1 min-h-0 px-10 py-7 max-w-3xl mx-auto w-full">
+        <input
+          className="w-full bg-transparent border-none outline-none text-[28px] font-semibold tracking-[-0.6px] text-fg placeholder:text-fg-subtle mb-2"
+          value={noteTitle}
+          onChange={(event) => setNoteTitle(event.target.value)}
+          placeholder="Untitled note"
+          aria-label="Note title"
+        />
+        <div className="flex items-center gap-2 mb-5 text-[11.5px] text-fg-muted mono">
+          <IconClock width={11} height={11} />
+          <span>
+            {new Date().toLocaleDateString(undefined, {
+              weekday: "long",
+              month: "short",
+              day: "numeric",
+            })}{" "}
+            · {sourceApp}
+          </span>
+          <div className="flex-1" />
+          <DButton
+            variant={captureState ? "primary" : "accent"}
+            size="sm"
+            onClick={() => void onToggleCapture()}
+            disabled={finalizePhase !== "idle"}
+          >
+            {isBusy ? (
+              <IconSparkles width={12} height={12} />
+            ) : captureState ? (
+              <IconStop width={12} height={12} />
+            ) : (
+              <IconMic width={12} height={12} />
+            )}
+            {captureLabel}
+          </DButton>
+          <DButton
+            variant="danger"
+            size="sm"
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={finalizePhase !== "idle"}
+          >
+            <IconTrash width={12} height={12} />
+            Delete
+          </DButton>
         </div>
 
         <div className="relative flex-1 min-h-0">
           <textarea
-            className="h-full w-full resize-none border-none focus:outline-none text-base text-gray-800 leading-relaxed placeholder:text-gray-300 bg-transparent"
+            className="h-full w-full resize-none border-none focus:outline-none text-[15px] leading-[1.7] text-fg placeholder:text-fg-subtle bg-transparent"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Write notes..."
+            placeholder="Write notes, or press Start recording and let Brifo listen."
             rows={16}
           />
           {finalizePhase !== "idle" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/90 backdrop-blur-sm rounded-lg">
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg"
+              style={{
+                background: "rgba(250,250,247,0.92)",
+                backdropFilter: "blur(4px)",
+              }}
+            >
               <svg
-                className="animate-spin h-6 w-6 text-accent-500"
+                className="animate-spin h-6 w-6"
+                style={{ color: "var(--color-accent)" }}
                 fill="none"
                 viewBox="0 0 24 24"
               >
@@ -343,24 +402,42 @@ export function QuickNotePage() {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                 />
               </svg>
-              <p className="text-sm text-gray-500">
-                {finalizePhase === "transcribing"
-                  ? "Processing transcript..."
-                  : "Generating document & tasks..."}
-              </p>
+              {(() => {
+                const messages =
+                  finalizePhase === "transcribing"
+                    ? TRANSCRIBING_MESSAGES
+                    : GENERATING_MESSAGES;
+                const current =
+                  messages[loadingMessageIndex % messages.length];
+                return (
+                  <p
+                    key={current}
+                    className="text-[13px] text-fg-muted transition-opacity duration-300"
+                  >
+                    {current}
+                  </p>
+                );
+              })()}
             </div>
           )}
         </div>
       </article>
 
-      {/* Status text */}
-      {statusText ? (
-        <div className="px-8 py-2 bg-gray-50/50 border-t border-gray-100">
-          <p className="text-xs text-success-600">{statusText}</p>
+      {/* Status / error */}
+      {statusText && (
+        <div
+          className="px-8 py-2.5 text-[12px] flex items-center gap-2"
+          style={{
+            borderTop: "1px solid var(--color-divider)",
+            background: "var(--color-success-soft)",
+            color: "var(--color-success)",
+          }}
+        >
+          <IconCheckCircle width={12} height={12} />
+          {statusText}
         </div>
-      ) : null}
+      )}
 
-      {/* Error display */}
       {error && isPermissionError ? (
         <div className="mx-6 mb-3">
           <PermissionErrorBanner
@@ -389,7 +466,14 @@ export function QuickNotePage() {
           />
         </div>
       ) : error ? (
-        <div className="mx-6 mb-3 px-3 py-2 rounded-md bg-error-50 text-error-700 text-sm">
+        <div
+          className="mx-6 mb-3 rounded-md px-3 py-2.5 text-[12.5px]"
+          style={{
+            background: "var(--color-danger-soft)",
+            color: "var(--color-danger)",
+            border: "1px solid rgba(180,35,24,0.18)",
+          }}
+        >
           {error}
         </div>
       ) : null}
@@ -401,14 +485,14 @@ export function QuickNotePage() {
         description="This will stop any active capture and clear your notes. This action cannot be undone."
       >
         <div className="flex justify-end gap-2">
-          <Button
-            variant="secondary"
+          <DButton
+            variant="default"
             size="sm"
             onClick={() => setShowDeleteConfirm(false)}
           >
             Cancel
-          </Button>
-          <Button
+          </DButton>
+          <DButton
             variant="danger"
             size="sm"
             onClick={() => {
@@ -417,9 +501,9 @@ export function QuickNotePage() {
             }}
           >
             Delete
-          </Button>
+          </DButton>
         </div>
       </Dialog>
-    </section>
+    </div>
   );
 }

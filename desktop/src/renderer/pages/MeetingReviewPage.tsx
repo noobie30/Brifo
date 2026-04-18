@@ -2,17 +2,19 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import {
-  Button,
-  Badge,
-  Card,
-  Field,
-  Input,
-  Select,
-  Textarea,
-} from "../components/ui";
 import { askMeeting, generateNotes, getNotes } from "../lib/api";
 import { NoteRecord } from "../types";
+import {
+  Card,
+  CardHeader,
+  Chip,
+  DButton,
+  Eyebrow,
+  PageHeader,
+  PriorityDot,
+  TaskTypeChip,
+} from "../components/design";
+import { IconSparkles, IconArrowRight } from "../components/icons";
 
 function normalizeTicket(item: Record<string, unknown>) {
   const summary =
@@ -21,13 +23,11 @@ function normalizeTicket(item: Record<string, unknown>) {
       : typeof item.title === "string"
         ? item.title
         : "Untitled task";
-
   const issueType =
     typeof item.issueType === "string" &&
     ["Bug", "Task", "Story", "Epic"].includes(item.issueType)
       ? item.issueType
       : "Task";
-
   const priorityRaw =
     typeof item.priority === "string" ? item.priority : "Medium";
   const priority =
@@ -37,7 +37,6 @@ function normalizeTicket(item: Record<string, unknown>) {
     priorityRaw === "Critical"
       ? priorityRaw
       : "Medium";
-
   return {
     issueType,
     summary: summary.trim() || "Untitled task",
@@ -74,43 +73,40 @@ export function MeetingReviewPage() {
       setLoading(false);
       return;
     }
-
     const savedNotes = localStorage.getItem(`brifo_notes_${id}`);
-    if (savedNotes) {
-      setRawUserNotes(savedNotes);
-    }
-
+    if (savedNotes) setRawUserNotes(savedNotes);
     void getNotes(id)
       .then(setNote)
-      .catch(() => {
-        setNote(null);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      .catch(() => setNote(null))
+      .finally(() => setLoading(false));
   }, [id]);
 
   if (!id) {
-    return <p className="text-sm text-gray-500">Meeting id missing.</p>;
+    return (
+      <div className="px-8 py-10 text-[13px] text-fg-muted">
+        Meeting id missing.
+      </div>
+    );
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-sm text-gray-400">Loading meeting data...</p>
+      <div className="flex items-center justify-center py-20 text-[13px] text-fg-subtle">
+        Loading meeting data…
       </div>
     );
   }
 
   async function onGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!id) {
-      return;
-    }
+    if (!id) return;
     setGenerating(true);
     setError(null);
     try {
-      const generated = await generateNotes(id, { rawUserNotes, templateUsed });
+      const generated = await generateNotes(id, {
+        rawUserNotes,
+        templateUsed,
+      });
       setNote(generated);
     } catch {
       setError(
@@ -123,13 +119,8 @@ export function MeetingReviewPage() {
 
   async function onAsk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!id) {
-      return;
-    }
-    if (!question.trim()) {
-      return;
-    }
-
+    if (!id) return;
+    if (!question.trim()) return;
     try {
       const response = await askMeeting(id, question);
       setAnswer(response.answer);
@@ -144,176 +135,239 @@ export function MeetingReviewPage() {
   }
 
   return (
-    <section className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold text-gray-900">
-          Post-meeting workspace
-        </h2>
-        <p className="text-sm text-gray-500">
-          Generate signal-aware outcomes, decisions, and action items.
-        </p>
-      </header>
+    <div className="flex flex-col">
+      <PageHeader
+        eyebrow="Post-meeting"
+        title="Workspace"
+        subtitle="Generate signal-aware outcomes, decisions, and action items from your transcript."
+      />
 
-      <Card className="flex flex-col gap-4">
-        <h3 className="text-base font-semibold text-gray-800">
-          Generate AI notes
-        </h3>
-        <form className="flex flex-col gap-4" onSubmit={onGenerate}>
-          <Field label="Template">
-            <Select
-              value={templateUsed}
-              onChange={(event) => setTemplateUsed(event.target.value)}
-            >
-              <option value="general">General</option>
-              <option value="1:1">1:1</option>
-              <option value="interview">Interview</option>
-              <option value="sales">Sales call</option>
-              <option value="standup">Standup</option>
-            </Select>
-          </Field>
-          <Field label="Raw notes">
-            <Textarea
-              value={rawUserNotes}
-              onChange={(event) => setRawUserNotes(event.target.value)}
-              rows={6}
-              placeholder="Optional notes to blend into AI generation"
-            />
-          </Field>
-          {error ? <p className="text-xs text-error-600">{error}</p> : null}
-          <Button
-            variant="primary"
-            type="submit"
-            disabled={generating}
-            loading={generating}
-          >
-            {generating ? "Generating..." : "Generate notes"}
-          </Button>
-        </form>
-      </Card>
+      <div className="px-8 pb-8 flex flex-col gap-5">
+        <Card padding="lg">
+          <Eyebrow className="mb-3">Generate AI notes</Eyebrow>
+          <form className="flex flex-col gap-3" onSubmit={onGenerate}>
+            <label className="flex flex-col gap-1.5">
+              <span className="eyebrow">Template</span>
+              <select
+                className="brifo-input"
+                value={templateUsed}
+                onChange={(e) => setTemplateUsed(e.target.value)}
+              >
+                <option value="general">General</option>
+                <option value="1:1">1:1</option>
+                <option value="interview">Interview</option>
+                <option value="sales">Sales call</option>
+                <option value="standup">Standup</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="eyebrow">Raw notes</span>
+              <textarea
+                className="brifo-input"
+                style={{ minHeight: 120 }}
+                value={rawUserNotes}
+                onChange={(e) => setRawUserNotes(e.target.value)}
+                placeholder="Optional notes to blend into AI generation"
+              />
+            </label>
+            {error && (
+              <div
+                className="rounded-md px-3 py-2.5 text-[12px]"
+                style={{
+                  background: "var(--color-danger-soft)",
+                  color: "var(--color-danger)",
+                  border: "1px solid rgba(180,35,24,0.18)",
+                }}
+              >
+                {error}
+              </div>
+            )}
+            <div>
+              <DButton variant="accent" type="submit" disabled={generating}>
+                <IconSparkles width={12} height={12} />
+                {generating ? "Generating…" : "Generate notes"}
+              </DButton>
+            </div>
+          </form>
+        </Card>
 
-      {note ? (
-        <>
-          <Card className="flex flex-col gap-4">
-            <h3 className="text-base font-semibold text-gray-800">
-              What mattered
-            </h3>
-            <div className="prose prose-sm prose-gray max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {note.whatMattered}
-              </ReactMarkdown>
+        {note ? (
+          <>
+            <Card padding="lg">
+              <Eyebrow className="mb-3">What mattered</Eyebrow>
+              <div className="prose prose-sm max-w-none text-fg-2">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {note.whatMattered}
+                </ReactMarkdown>
+              </div>
+            </Card>
+
+            <div className="grid grid-cols-2 gap-5">
+              <Card padding="lg">
+                <Eyebrow className="mb-3">Decisions</Eyebrow>
+                <ul className="flex flex-col gap-2">
+                  {note.decisions.map((d, i) => (
+                    <li
+                      key={i}
+                      className="text-[13px] text-fg-2 leading-[1.55]"
+                    >
+                      • {d}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+              <Card padding="lg">
+                <Eyebrow className="mb-3">Risks</Eyebrow>
+                <ul className="flex flex-col gap-2">
+                  {note.risks.map((r, i) => (
+                    <li
+                      key={i}
+                      className="text-[13px] text-fg-2 leading-[1.55]"
+                    >
+                      • {r}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </div>
+
+            <Card padding="none" className="overflow-hidden">
+              <CardHeader
+                title="Action items"
+                meta={`${note.actionItems.length}`}
+                actions={
+                  <Link
+                    to="/tasks"
+                    className="inline-flex items-center gap-1.5 text-[12px] font-medium"
+                    style={{ color: "var(--color-accent)" }}
+                  >
+                    Open tasks
+                    <IconArrowRight width={12} height={12} />
+                  </Link>
+                }
+              />
+              <div>
+                {note.actionItems.map((rawItem, index) => {
+                  const item = normalizeTicket(
+                    rawItem as unknown as Record<string, unknown>,
+                  );
+                  return (
+                    <div
+                      key={index}
+                      className="flex items-start gap-3 px-4 py-3"
+                      style={{
+                        borderTop:
+                          index > 0
+                            ? "1px solid var(--color-divider)"
+                            : undefined,
+                      }}
+                    >
+                      <TaskTypeChip type={item.issueType} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-medium text-fg">
+                          {item.summary}
+                        </div>
+                        <div className="mt-1 flex items-center gap-3 text-[11.5px] text-fg-muted">
+                          <PriorityDot priority={item.priority} />
+                          <span>
+                            {item.assigneeId
+                              ? `Assignee: ${item.assigneeId}`
+                              : "Assignee: unassigned"}
+                          </span>
+                          {item.reporterId && (
+                            <span>Reporter: {item.reporterId}</span>
+                          )}
+                        </div>
+                        <p className="mt-1.5 text-[12.5px] text-fg-muted leading-[1.55]">
+                          {item.acceptanceCriteria}
+                        </p>
+                      </div>
+                      <Chip tone="accent">{item.issueType}</Chip>
+                    </div>
+                  );
+                })}
+                {note.actionItems.length === 0 && (
+                  <div className="px-4 py-6 text-center text-[12.5px] text-fg-muted">
+                    No action items detected.
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <Card padding="lg">
+              <Eyebrow className="mb-3">Open questions</Eyebrow>
+              <ul className="flex flex-col gap-2">
+                {note.openQuestions.map((q, i) => (
+                  <li
+                    key={i}
+                    className="text-[13px] text-fg-2 leading-[1.55]"
+                  >
+                    • {q}
+                  </li>
+                ))}
+                {note.openQuestions.length === 0 && (
+                  <li className="text-[12.5px] text-fg-muted">
+                    None — everything seems resolved.
+                  </li>
+                )}
+              </ul>
+            </Card>
+
+            <Card padding="lg">
+              <Eyebrow className="mb-3">Follow-up email draft</Eyebrow>
+              <textarea
+                className="brifo-input"
+                style={{ minHeight: 180 }}
+                value={note.followUpEmail}
+                readOnly
+              />
+            </Card>
+
+            <Card padding="lg">
+              <Eyebrow className="mb-3">Ask this meeting</Eyebrow>
+              <form className="flex flex-col gap-3" onSubmit={onAsk}>
+                <label className="flex flex-col gap-1.5">
+                  <span className="eyebrow">Question</span>
+                  <input
+                    className="brifo-input"
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    placeholder="What objections did the customer raise?"
+                  />
+                </label>
+                <div>
+                  <DButton variant="default" type="submit">
+                    Ask
+                  </DButton>
+                </div>
+                {answer && (
+                  <div
+                    className="rounded-md px-3 py-2.5 text-[13px] leading-[1.6]"
+                    style={{
+                      background: "var(--color-subtle)",
+                      color: "var(--color-fg-2)",
+                    }}
+                  >
+                    {answer}
+                  </div>
+                )}
+              </form>
+            </Card>
+          </>
+        ) : (
+          <Card padding="lg">
+            <div className="text-center py-6">
+              <div className="text-[14px] font-medium text-fg">
+                No generated notes yet
+              </div>
+              <div className="mt-1 text-[12.5px] text-fg-muted">
+                Use the form above to generate a summary, decisions, and action
+                items from the transcript.
+              </div>
             </div>
           </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="flex flex-col gap-3">
-              <h3 className="text-base font-semibold text-gray-800">
-                Decisions
-              </h3>
-              {note.decisions.map((decision, index) => (
-                <p key={index} className="text-sm text-gray-700">
-                  {"\u2022"} {decision}
-                </p>
-              ))}
-            </Card>
-
-            <Card className="flex flex-col gap-3">
-              <h3 className="text-base font-semibold text-gray-800">Risks</h3>
-              {note.risks.map((risk, index) => (
-                <p key={index} className="text-sm text-gray-700">
-                  {"\u2022"} {risk}
-                </p>
-              ))}
-            </Card>
-          </div>
-
-          <Card className="flex flex-col gap-4">
-            <h3 className="text-base font-semibold text-gray-800">Tasks</h3>
-            {note.actionItems.map((rawItem, index) => {
-              const item = normalizeTicket(
-                rawItem as unknown as Record<string, unknown>,
-              );
-              return (
-                <div
-                  key={index}
-                  className="flex items-start justify-between gap-4 rounded-md border border-gray-100 bg-gray-50 p-3"
-                >
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800">
-                      {item.summary}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {item.issueType} {"\u00B7"} {item.priority}
-                      {item.assigneeId
-                        ? ` \u00B7 Assignee: ${item.assigneeId}`
-                        : " \u00B7 Assignee: unassigned"}
-                      {item.reporterId
-                        ? ` \u00B7 Reporter: ${item.reporterId}`
-                        : ""}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {item.acceptanceCriteria}
-                    </p>
-                  </div>
-                  <Badge variant="accent" size="sm">
-                    {item.issueType}
-                  </Badge>
-                </div>
-              );
-            })}
-            <Link
-              to="/tasks"
-              className="inline-flex items-center text-sm font-medium text-accent-600 hover:text-accent-700 transition-colors"
-            >
-              Open Tasks
-            </Link>
-          </Card>
-
-          <Card className="flex flex-col gap-3">
-            <h3 className="text-base font-semibold text-gray-800">
-              Open questions
-            </h3>
-            {note.openQuestions.map((questionText, index) => (
-              <p key={index} className="text-sm text-gray-700">
-                {"\u2022"} {questionText}
-              </p>
-            ))}
-          </Card>
-
-          <Card className="flex flex-col gap-3">
-            <h3 className="text-base font-semibold text-gray-800">
-              Follow-up email draft
-            </h3>
-            <Textarea value={note.followUpEmail} readOnly rows={8} />
-          </Card>
-
-          <Card className="flex flex-col gap-4">
-            <h3 className="text-base font-semibold text-gray-800">
-              Ask this meeting
-            </h3>
-            <form className="flex flex-col gap-4" onSubmit={onAsk}>
-              <Field label="Question">
-                <Input
-                  value={question}
-                  onChange={(event) => setQuestion(event.target.value)}
-                  placeholder="What objections did the customer raise?"
-                />
-              </Field>
-              <Button variant="secondary" type="submit">
-                Ask
-              </Button>
-              {answer ? (
-                <p className="text-sm text-gray-700 bg-gray-50 rounded-md p-3">
-                  {answer}
-                </p>
-              ) : null}
-            </form>
-          </Card>
-        </>
-      ) : (
-        <p className="text-sm text-gray-500">
-          No generated notes yet. Use the form above.
-        </p>
-      )}
-    </section>
+        )}
+      </div>
+    </div>
   );
 }

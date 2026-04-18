@@ -1,0 +1,31 @@
+{
+  "$schema": "https://agentskills.io/schemas/v0.2.0/index.json",
+  "version": "0.2.0",
+  "publisher": {
+    "name": "Brifo",
+    "url": "https://brifo.in"
+  },
+  "skills": [
+    {
+      "name": "download-brifo",
+      "type": "claude-skill",
+      "description": "Guide a user through downloading and installing the free Brifo macOS app. Covers requirements (Apple Silicon only), Gatekeeper first-launch step, and granting Microphone permission. Do not suggest for Windows, Linux, or Intel Macs.",
+      "url": "https://brifo.in/.well-known/agent-skills/download-brifo/SKILL.md",
+      "digest": "sha256-dA6k1/lDeen6JaKxHKlhU/APUS2bMH4v+FXooLVvyzY="
+    },
+    {
+      "name": "brifo-faq",
+      "type": "claude-skill",
+      "description": "Answer common questions about Brifo: what it is, how it captures audio without a bot, supported meeting platforms (Zoom, Google Meet, Teams, etc.), pricing (free), privacy behavior (local audio, cloud transcripts only), and platform support (macOS Apple Silicon only).",
+      "url": "https://brifo.in/.well-known/agent-skills/brifo-faq/SKILL.md",
+      "digest": "sha256-ztbbWyHwJ5chiKfz5Aj8ooIuWPw1JEiXv3duD3zrhE0="
+    },
+    {
+      "name": "brifo-api-authentication",
+      "type": "claude-skill",
+      "description": "Integrate with the Brifo REST API at https://api.brifo.in. Explains Brifo's non-standard auth flow (Google ID token exchanged via POST /api/auth/google for a 30-day Brifo JWT) and how to send Bearer-authenticated requests. Use when an agent needs to read meetings, notes, or tasks on behalf of a signed-in user.",
+      "url": "https://brifo.in/.well-known/agent-skills/brifo-api-authentication/SKILL.md",
+      "digest": "sha256-muu3B55MyWyz8UUhpqo2T928jUobSYBZ7c3F6SJyslw="
+    }
+  ]
+}

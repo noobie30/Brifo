@@ -1,25 +1,65 @@
+import {
+  BtnPrimary,
+  Eyebrow,
+  IconApple,
+  IconCheck,
+} from "../lib/design";
+
 export function Hero() {
   const downloadUrl = import.meta.env.VITE_DOWNLOAD_URL || "#download";
 
   return (
-    <section className="bg-white px-6 pb-20 pt-24 md:px-12 md:pb-24 md:pt-28">
-      <div className="animate-hero mx-auto max-w-2xl text-center">
-        <h1 className="mb-5 text-4xl font-bold leading-[1.1] tracking-tight text-gray-900 md:text-[52px]">
+    <section
+      id="hero"
+      className="relative overflow-hidden px-6 pt-16 pb-20 md:px-12 md:pt-24 md:pb-28"
+      style={{ background: "var(--color-canvas)" }}
+    >
+      {/* subtle accent glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute"
+        style={{
+          top: -140,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: 520,
+          height: 520,
+          borderRadius: "50%",
+          background: "var(--color-accent)",
+          opacity: 0.08,
+          filter: "blur(80px)",
+        }}
+      />
+
+      <div className="animate-hero relative mx-auto max-w-3xl text-center">
+        <h1
+          className="serif font-medium tracking-[-1.2px]"
+          style={{
+            color: "var(--color-fg)",
+            fontSize: "clamp(40px, 6vw, 58px)",
+            lineHeight: 1.06,
+            margin: 0,
+          }}
+        >
           Meeting notes that
           <br />
           write themselves
         </h1>
-        <p className="mx-auto mb-9 max-w-lg text-lg leading-relaxed text-gray-500">
+
+        <p
+          className="mx-auto mt-6 text-[16.5px] md:text-[17px] leading-[1.6]"
+          style={{ color: "var(--color-fg-muted)", maxWidth: 560 }}
+        >
           Brifo listens to your meetings and writes up the notes so you don't
           have to. No bot joins the call.
         </p>
-        <a
-          href={downloadUrl}
-          download
-          className="inline-block rounded-xl bg-gray-900 px-7 py-3.5 text-[15px] font-medium text-white transition-colors hover:bg-gray-800"
-        >
-          Download for Mac
-        </a>
+
+        <div className="mt-9 flex flex-col items-center gap-3">
+          <BtnPrimary asAnchor href={downloadUrl} download size="lg">
+            <IconApple size={16} />
+            Download for Mac
+          </BtnPrimary>
+        </div>
       </div>
     </section>
   );

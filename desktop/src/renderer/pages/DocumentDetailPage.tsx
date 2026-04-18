@@ -5,43 +5,33 @@ import remarkGfm from "remark-gfm";
 import { getNotes } from "../lib/api";
 import { useAppStore } from "../store/app-store";
 import { NoteRecord } from "../types";
+import { Card, Chip, DButton, Eyebrow } from "../components/design";
 import {
-  Button,
-  Card,
-  Breadcrumbs,
-  EmptyState,
-  Skeleton,
-} from "../components/ui";
+  IconArrowLeft,
+  IconClock,
+  IconDownload,
+  IconEdit,
+  IconShare,
+  IconSparkles,
+} from "../components/icons";
 
 function resolveTitle(
   meetingId: string,
   meetingTitle?: string | null,
   fallbackTitle?: string | null,
 ) {
-  if (meetingTitle && meetingTitle.trim()) {
-    return meetingTitle.trim();
-  }
-  if (fallbackTitle && fallbackTitle.trim()) {
-    return fallbackTitle.trim();
-  }
+  if (meetingTitle && meetingTitle.trim()) return meetingTitle.trim();
+  if (fallbackTitle && fallbackTitle.trim()) return fallbackTitle.trim();
   return `Document ${meetingId.slice(0, 8)}`;
 }
 
 function formatDuration(startTime: string, endTime?: string) {
-  if (!endTime) {
-    return null;
-  }
-
+  if (!endTime) return null;
   const start = new Date(startTime).getTime();
   const end = new Date(endTime).getTime();
-  if (end <= start) {
-    return null;
-  }
-
+  if (end <= start) return null;
   const minutes = Math.round((end - start) / 60000);
-  if (minutes < 60) {
-    return `${minutes} min`;
-  }
+  if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   const remaining = minutes % 60;
   return remaining > 0 ? `${hours}h ${remaining}m` : `${hours}h`;
@@ -49,10 +39,7 @@ function formatDuration(startTime: string, endTime?: string) {
 
 function normalizeMarkdown(value: string): string {
   const trimmed = value.replace(/\r\n/g, "\n").trim();
-  if (!trimmed) {
-    return "";
-  }
-
+  if (!trimmed) return "";
   return trimmed
     .replace(/\s+(#{1,6}\s)/g, "\n\n$1")
     .replace(/\n{3,}/g, "\n\n")
@@ -76,34 +63,26 @@ export function DocumentDetailPage() {
   );
 
   useEffect(() => {
-    if (!meetingId) {
-      return;
-    }
-
+    if (!meetingId) return;
     setLoading(true);
     setError(null);
-
     void getNotes(meetingId)
-      .then((result) => {
-        setNote(result);
-      })
+      .then(setNote)
       .catch(() => {
         setNote(null);
         setError("No generated notes found yet.");
       })
-      .finally(() => {
-        setLoading(false);
-      });
+      .finally(() => setLoading(false));
   }, [meetingId]);
 
   if (!meetingId) {
     return (
-      <section className="flex flex-col gap-3 p-6">
-        <h2 className="text-lg font-semibold text-gray-800">
+      <div className="px-8 py-10">
+        <div className="text-[15px] font-semibold text-fg">
           Document not found
-        </h2>
-        <p className="text-sm text-gray-500">Meeting id is missing.</p>
-      </section>
+        </div>
+        <p className="mt-1 text-[12.5px] text-fg-muted">Meeting id is missing.</p>
+      </div>
     );
   }
 
@@ -125,114 +104,214 @@ export function DocumentDetailPage() {
 
   if (loading) {
     return (
-      <section className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-        <Skeleton width="40%" height={16} />
-        <Skeleton width="70%" height={28} />
-        <Skeleton width="30%" height={14} />
-        <Card padding="lg">
-          <div className="space-y-4">
-            <Skeleton width="100%" height={14} />
-            <Skeleton width="90%" height={14} />
-            <Skeleton width="95%" height={14} />
-            <Skeleton width="70%" height={14} />
-          </div>
-        </Card>
-      </section>
+      <div className="px-8 py-10 text-[13px] text-fg-subtle">Loading…</div>
     );
   }
 
   return (
-    <section className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-      {/* Breadcrumbs */}
-      <Breadcrumbs
-        items={[
-          { label: "Documents", onClick: () => navigate("/documents") },
-          { label: documentTitle },
-        ]}
-      />
-
-      {/* Header */}
-      <header className="space-y-2">
-        <h1 className="text-2xl font-bold text-gray-900">{documentTitle}</h1>
-        <p className="text-sm text-gray-400">
-          {new Date(documentDate).toLocaleDateString("en-GB")}{" "}
-          {new Date(documentDate).toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          })}
-          {duration && <span> &middot; {duration}</span>}
-        </p>
-      </header>
-
-      {/* Notes content */}
-      {summaryMarkdown ? (
-        <Card padding="lg">
-          <article className="prose prose-gray prose-sm max-w-none prose-headings:font-semibold prose-headings:text-gray-800 prose-p:text-gray-600 prose-li:text-gray-600 prose-a:text-accent-600">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {summaryMarkdown}
-            </ReactMarkdown>
-          </article>
-        </Card>
-      ) : null}
-
-      {/* Decisions (from structured output, shown if not already in markdown) */}
-      {(note?.decisions?.length ?? 0) > 0 &&
-        !summaryMarkdown.includes("## Decisions") && (
-          <Card padding="lg">
-            <h2 className="text-base font-semibold text-gray-800 mb-3">
-              Decisions
-            </h2>
-            <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-              {note?.decisions.map((value, index) => (
-                <li key={`decision_${index}`}>{value}</li>
-              ))}
-            </ul>
-          </Card>
-        )}
-
-      {/* Open Questions (from structured output) */}
-      {(note?.openQuestions?.length ?? 0) > 0 && (
-        <Card padding="lg">
-          <h2 className="text-base font-semibold text-gray-800 mb-3">
-            Open Questions
-          </h2>
-          <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-            {note?.openQuestions.map((value, index) => (
-              <li key={`question_${index}`}>{value}</li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {/* Error / empty state */}
-      {error && (
-        <EmptyState
-          icon={
-            <span className="material-symbols-outlined text-4xl">notes</span>
-          }
-          title="No notes yet"
-          description={error}
-          action={{
-            label: "Generate Notes",
-            onClick: () =>
-              navigate(
-                `/quick-note?meetingId=${encodeURIComponent(meetingId)}&autoStart=0`,
-              ),
-          }}
-        />
-      )}
-
-      {/* Bottom navigation */}
-      <div className="flex items-center gap-3 pt-2">
-        <Button
-          variant="secondary"
-          size="sm"
+    <div className="flex flex-col">
+      {/* Breadcrumb */}
+      <div
+        className="flex items-center gap-2 px-8 pt-5"
+      >
+        <button
+          type="button"
           onClick={() => navigate("/documents")}
+          className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted hover:text-fg cursor-pointer"
         >
-          All Documents
-        </Button>
+          <IconArrowLeft width={12} height={12} />
+          Documents
+        </button>
+        <span className="text-[12px] text-fg-subtle">/</span>
+        <span className="text-[12px] text-fg-subtle mono truncate">
+          {documentTitle}
+        </span>
       </div>
-    </section>
+
+      <div
+        className="px-8 pt-4 pb-8 grid gap-8 max-w-6xl mx-auto w-full"
+        style={{ gridTemplateColumns: "minmax(0,1fr) 240px" }}
+      >
+        {/* Article */}
+        <article className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <Chip>Document</Chip>
+            {note ? (
+              <Chip tone="success">Completed</Chip>
+            ) : (
+              <Chip tone="warn">Pending</Chip>
+            )}
+            <span
+              className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-muted mono"
+            >
+              <IconClock width={11} height={11} />
+              {new Date(documentDate).toLocaleString()}
+              {duration && ` · ${duration}`}
+            </span>
+          </div>
+
+          <h1
+            className="serif text-[34px] leading-[1.15] tracking-[-0.8px] font-medium text-fg m-0 max-w-[680px]"
+          >
+            {documentTitle}
+          </h1>
+
+          <div
+            className="mt-4 pb-3 mb-6 flex items-center gap-2"
+            style={{ borderBottom: "1px solid var(--color-divider)" }}
+          >
+            <span className="text-[12px] text-fg-muted">
+              Auto-summarized by Brifo
+            </span>
+            <div className="flex-1" />
+            <DButton variant="ghost" size="sm">
+              <IconEdit width={12} height={12} />
+              Edit
+            </DButton>
+            <DButton variant="ghost" size="sm">
+              <IconShare width={12} height={12} />
+              Share
+            </DButton>
+            <DButton variant="ghost" size="sm">
+              <IconDownload width={12} height={12} />
+              Download
+            </DButton>
+          </div>
+
+          {summaryMarkdown && (
+            <article
+              className="prose prose-sm max-w-none text-fg-2 prose-headings:text-fg prose-headings:font-semibold prose-a:text-accent"
+              style={{ fontSize: 15, lineHeight: 1.75 }}
+            >
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {summaryMarkdown}
+              </ReactMarkdown>
+            </article>
+          )}
+
+          {(note?.decisions?.length ?? 0) > 0 &&
+            !summaryMarkdown.includes("## Decisions") && (
+              <section className="mt-8">
+                <h2 className="text-[19px] font-semibold text-fg mt-0 mb-3">
+                  Decisions
+                </h2>
+                <ul className="list-disc pl-5 space-y-1.5 text-[14px] text-fg-2 leading-[1.6]">
+                  {note?.decisions.map((v, i) => (
+                    <li key={`decision_${i}`}>{v}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+          {(note?.openQuestions?.length ?? 0) > 0 && (
+            <section className="mt-8">
+              <h2 className="text-[19px] font-semibold text-fg mt-0 mb-3">
+                Open questions
+              </h2>
+              <ul className="list-disc pl-5 space-y-1.5 text-[14px] text-fg-2 leading-[1.6]">
+                {note?.openQuestions.map((v, i) => (
+                  <li key={`question_${i}`}>{v}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {error && (
+            <Card padding="lg" className="mt-8">
+              <div className="flex flex-col items-center text-center py-6 gap-3">
+                <div
+                  className="inline-flex items-center justify-center rounded-xl"
+                  style={{
+                    width: 44,
+                    height: 44,
+                    background: "var(--color-subtle)",
+                    color: "var(--color-fg-muted)",
+                  }}
+                >
+                  <IconSparkles width={20} height={20} />
+                </div>
+                <div>
+                  <div className="text-[14px] font-semibold text-fg">
+                    No notes yet
+                  </div>
+                  <div className="mt-1 text-[12.5px] text-fg-muted max-w-[400px]">
+                    {error}
+                  </div>
+                </div>
+                <DButton
+                  variant="accent"
+                  onClick={() =>
+                    navigate(
+                      `/quick-note?meetingId=${encodeURIComponent(meetingId)}&autoStart=0`,
+                    )
+                  }
+                >
+                  <IconSparkles width={12} height={12} />
+                  Generate notes
+                </DButton>
+              </div>
+            </Card>
+          )}
+        </article>
+
+        {/* Sidebar */}
+        <aside
+          className="flex flex-col gap-3"
+          style={{ position: "sticky", top: 0, alignSelf: "start" }}
+        >
+          <Card padding="md">
+            <Eyebrow className="mb-2">On this page</Eyebrow>
+            <div className="flex flex-col gap-1.5 text-[12.5px] text-fg-muted">
+              {summaryMarkdown && (
+                <a
+                  href="#summary"
+                  className="hover:text-fg transition-colors"
+                >
+                  Summary
+                </a>
+              )}
+              {(note?.decisions?.length ?? 0) > 0 && (
+                <a
+                  href="#decisions"
+                  className="hover:text-fg transition-colors"
+                >
+                  Decisions
+                </a>
+              )}
+              {(note?.openQuestions?.length ?? 0) > 0 && (
+                <a
+                  href="#questions"
+                  className="hover:text-fg transition-colors"
+                >
+                  Open questions
+                </a>
+              )}
+            </div>
+          </Card>
+
+          <Card padding="md">
+            <Eyebrow className="mb-2">Linked</Eyebrow>
+            <div className="flex flex-col gap-1.5 text-[12.5px]">
+              {meeting && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/meeting/${meeting._id}/review`)}
+                  className="text-left text-fg-2 hover:text-fg transition-colors truncate"
+                >
+                  {meeting.title || "Meeting"}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => navigate("/tasks")}
+                className="text-left text-fg-2 hover:text-fg transition-colors"
+              >
+                Related tasks
+              </button>
+            </div>
+          </Card>
+        </aside>
+      </div>
+    </div>
   );
 }

@@ -1,11 +1,17 @@
+import { useEffect } from "react";
 import { Header } from "./components/Header";
 import { Hero } from "./components/Hero";
 import { HowItWorks } from "./components/HowItWorks";
 import { Integrations } from "./components/Integrations";
 import { CTA } from "./components/CTA";
 import { Footer } from "./components/Footer";
+import { registerWebMCPTools } from "./lib/webmcp";
 
 export function App() {
+  useEffect(() => {
+    void registerWebMCPTools();
+  }, []);
+
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 antialiased">
       <Header />

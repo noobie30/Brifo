@@ -31,9 +31,12 @@ interface AppState {
   tasks: TaskRecord[];
   upcomingEvents: CalendarEventRecord[];
   searchResult: SearchResult | null;
+  authNotice: "session-expired" | null;
   setSession: (accessToken: string, user: AuthUser) => Promise<void>;
   boot: () => Promise<void>;
   signOut: () => void;
+  handleExpiredSession: () => void;
+  setAuthNotice: (notice: "session-expired" | null) => void;
   loadDashboard: () => Promise<void>;
   createMeeting: (
     title: string,
@@ -50,10 +53,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   tasks: [],
   upcomingEvents: [],
   searchResult: null,
+  authNotice: null,
 
   setSession: async (accessToken, user) => {
     await setAuth(accessToken, user);
-    set({ user });
+    set({ user, authNotice: null });
+  },
+
+  setAuthNotice: (notice) => set({ authNotice: notice }),
+
+  handleExpiredSession: () => {
+    // Called by the axios 401 interceptor. Clears auth state and
+    // surfaces a "session-expired" notice for LoginPage to render.
+    // Equivalent to signOut() + a breadcrumb for the user.
+    void clearAuth();
+    set({
+      user: null,
+      meetings: [],
+      tasks: [],
+      upcomingEvents: [],
+      searchResult: null,
+      authNotice: "session-expired",
+    });
   },
 
   boot: async () => {
@@ -89,6 +110,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       tasks: [],
       upcomingEvents: [],
       searchResult: null,
+      authNotice: null,
     });
   },
 

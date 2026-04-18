@@ -1,22 +1,33 @@
 # Brifo - AI Meeting Notes
 # https://brifo.in
 
+# Content Signals (contentsignals.org / draft-romm-aipref-contentsignals)
+# Marketing content: OK for agents to answer user questions and search,
+# not used for model training.
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+
 User-agent: *
+Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
 Sitemap: https://brifo.in/sitemap.xml
 
-# AI Crawlers - explicitly allowed
+# AI Crawlers - explicitly allowed to read for search/answer, not train
 User-agent: GPTBot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
 
 User-agent: ChatGPT-User
+Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
 
 User-agent: ClaudeBot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
 
 User-agent: PerplexityBot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
 
 User-agent: Google-Extended
+Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /

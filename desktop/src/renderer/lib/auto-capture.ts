@@ -29,6 +29,11 @@ export interface AutoCaptureState {
   trigger: CaptureTrigger;
   startedAt: number;
   status: "starting" | "recording" | "stopping";
+  // True when the capture is tied to a real meeting (join URL or calendar
+  // event). False for Quick Notes started without a meeting context — the
+  // main-process meeting detector must NOT fire "meeting-ended" for these,
+  // since there is no meeting to end.
+  expectsMeetingSignal: boolean;
 }
 
 export interface MeetingDetectedNotice {
@@ -58,9 +63,7 @@ const STREAM_INTERVAL_MS = 250; // Send PCM audio every 250ms
 
 let activeState: AutoCaptureState | null = null;
 let mediaRecorder: MediaRecorder | null = null;
-let displayStream: MediaStream | null = null;
 let micStream: MediaStream | null = null;
-let mixedStream: MediaStream | null = null;
 let audioContext: AudioContext | null = null;
 let analyserNode: AnalyserNode | null = null;
 let analyserTimer: number | null = null;
@@ -144,7 +147,9 @@ function detectSourceApp(input: StartCaptureInput): string {
 
 function emitState() {
   try {
-    window.electronAPI.setCaptureActive(!!activeState);
+    window.electronAPI.setCaptureActive(!!activeState, {
+      expectsMeetingSignal: activeState?.expectsMeetingSignal ?? false,
+    });
   } catch {
     // Main process bridge may be unavailable in non-Electron environments.
   }
@@ -213,23 +218,18 @@ function isPermissionRelated(message: string): boolean {
   );
 }
 
-function buildCaptureStartError(
-  displayError: unknown,
-  micError: unknown,
-): Error {
-  const displayMessage = getErrorMessage(displayError).toLowerCase();
+function buildCaptureStartError(micError: unknown): Error {
   const micMessage = getErrorMessage(micError).toLowerCase();
-  const combined = `${displayMessage} ${micMessage}`.trim();
 
-  if (isPermissionRelated(combined)) {
+  if (isPermissionRelated(micMessage)) {
     return new PermissionError(
       "Microphone access is required. Please grant Brifo microphone permission in System Settings and try again.",
     );
   }
 
   if (
-    combined.includes("not supported") ||
-    combined.includes("notsupportederror")
+    micMessage.includes("not supported") ||
+    micMessage.includes("notsupportederror")
   ) {
     return new Error(
       "This environment does not support audio capture. Brifo needs microphone permission to listen.",
@@ -337,26 +337,6 @@ function setupSilenceDetection(stream: MediaStream) {
 async function getMixedAudioStreams() {
   await ensureMicrophonePermission();
 
-  let displayError: unknown = null;
-  let micError: unknown = null;
-
-  try {
-    // Request system audio loopback via Electron's setDisplayMediaRequestHandler.
-    // The main process handles source selection silently (no screen picker).
-    displayStream = await navigator.mediaDevices.getDisplayMedia({
-      video: false,
-      audio: true,
-    });
-    // Drop any video tracks — we only need the system audio loopback
-    for (const track of displayStream?.getVideoTracks() ?? []) {
-      track.stop();
-      displayStream?.removeTrack(track);
-    }
-  } catch (error) {
-    displayError = error;
-    displayStream = null;
-  }
-
   try {
     micStream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -365,50 +345,28 @@ async function getMixedAudioStreams() {
       },
     });
   } catch (error) {
-    micError = error;
     micStream = null;
+    throw buildCaptureStartError(error);
   }
 
-  if (!displayStream && !micStream) {
-    throw buildCaptureStartError(displayError, micError);
+  if (!micStream || !micStream.getAudioTracks().length) {
+    throw buildCaptureStartError(new Error("No microphone track available."));
   }
 
+  // Route the raw mic stream through an AudioContext so downstream code
+  // (analyser for silence detection, PCM streaming) has a consistent
+  // MediaStream reference to work with. We don't mix in any other
+  // source — Brifo captures the microphone only, by design.
   audioContext = new AudioContext();
   const destination = audioContext.createMediaStreamDestination();
+  const micSource = audioContext.createMediaStreamSource(
+    new MediaStream(micStream.getAudioTracks()),
+  );
+  micSource.connect(destination);
 
-  const displayAudioTracks = displayStream?.getAudioTracks() ?? [];
-  if (displayAudioTracks.length) {
-    const displayAudioStream = new MediaStream(displayAudioTracks);
-    const displaySource =
-      audioContext.createMediaStreamSource(displayAudioStream);
-    displaySource.connect(destination);
-  }
-
-  const micAudioTracks = micStream?.getAudioTracks() ?? [];
-  if (micAudioTracks.length) {
-    const micAudioStream = new MediaStream(micAudioTracks);
-    const micSource = audioContext.createMediaStreamSource(micAudioStream);
-    micSource.connect(destination);
-  }
-
-  mixedStream = destination.stream;
-  if (!mixedStream.getAudioTracks().length) {
-    const micTracks = micStream?.getAudioTracks() ?? [];
-    if (micTracks.length) {
-      mixedStream = new MediaStream(micTracks);
-    } else {
-      const displayTracks = displayStream?.getAudioTracks() ?? [];
-      if (displayTracks.length) {
-        mixedStream = new MediaStream(displayTracks);
-      }
-    }
-  }
-
-  if (!mixedStream.getAudioTracks().length) {
-    throw buildCaptureStartError(displayError, micError);
-  }
-
-  return mixedStream;
+  return destination.stream.getAudioTracks().length
+    ? destination.stream
+    : micStream;
 }
 
 const MAX_UPLOAD_RETRIES = 2;
@@ -527,6 +485,8 @@ export async function startAutoCapture(input: StartCaptureInput) {
   }
 
   const sourceApp = detectSourceApp(input);
+  const expectsMeetingSignal =
+    input.trigger === "calendar" || !!input.joinUrl;
   activeState = {
     meetingId: input.meetingId,
     title: input.title,
@@ -534,6 +494,7 @@ export async function startAutoCapture(input: StartCaptureInput) {
     trigger: input.trigger,
     startedAt: Date.now(),
     status: "starting",
+    expectsMeetingSignal,
   };
   lastDetectedNotice = {
     meetingId: input.meetingId,
@@ -811,20 +772,10 @@ export async function stopAutoCapture(reason: StopReason = "manual") {
     }
 
     // Step 6: STOP ALL TRACKS FIRST — this releases the OS-level mic lock
-    // (so the macOS mic indicator turns off immediately).  AudioContext
+    // (so the macOS mic indicator turns off immediately). AudioContext
     // close comes afterwards.
     try {
-      stopAllTracks(displayStream);
-    } catch {
-      // ignore
-    }
-    try {
       stopAllTracks(micStream);
-    } catch {
-      // ignore
-    }
-    try {
-      stopAllTracks(mixedStream);
     } catch {
       // ignore
     }
@@ -858,9 +809,7 @@ export async function stopAutoCapture(reason: StopReason = "manual") {
     // ALWAYS null state so we never end up with zombie references, even if
     // one of the cleanup steps above threw.
     mediaRecorder = null;
-    displayStream = null;
     micStream = null;
-    mixedStream = null;
     audioContext = null;
     analyserNode = null;
     consecutiveStreamFailures = 0;

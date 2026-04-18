@@ -15,9 +15,30 @@ exports.default = async function adHocSign(context) {
   const appName = context.packager.appInfo.productFilename;
   const appPath = path.join(context.appOutDir, `${appName}.app`);
 
+  // Pin the code-signing identifier to the app's bundle ID. With plain
+  // `--sign -`, codesign derives a per-build identifier, so macOS TCC
+  // (Microphone permission) can treat every rebuild as a new app and
+  // accumulate duplicate entries. Pinning `--identifier` keeps the
+  // identifier stable across rebuilds — the best we can do under
+  // ad-hoc signing (Developer ID + notarization would be deterministic).
+  const bundleId =
+    context.packager.appInfo.info._configuration.appId || "com.brifo.desktop";
+
   // eslint-disable-next-line no-console
-  console.log(`[ad-hoc-sign] signing ${appPath}`);
-  execFileSync("codesign", ["--deep", "--force", "--sign", "-", appPath], {
-    stdio: "inherit",
-  });
+  console.log(
+    `[ad-hoc-sign] signing ${appPath} (identifier=${bundleId})`,
+  );
+  execFileSync(
+    "codesign",
+    [
+      "--deep",
+      "--force",
+      "--sign",
+      "-",
+      "--identifier",
+      bundleId,
+      appPath,
+    ],
+    { stdio: "inherit" },
+  );
 };

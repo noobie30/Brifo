@@ -2,81 +2,156 @@
 @plugin "@tailwindcss/typography";
 
 /*
- * Brifo Design System — Linear-inspired, light mode
- * All design tokens defined here via Tailwind v4 @theme
+ * Brifo Design System — light theme, Linear/Notion calm.
+ * Warm off-white canvas, crisp cards, hairline borders.
+ * Tokens align 1:1 with the design handoff so pages can use either
+ * Tailwind utilities (bg-canvas, text-fg-muted, …) or CSS variables
+ * (var(--bg-canvas), var(--fg-muted), …) interchangeably.
  */
 @theme {
-  /* ── Color: Gray (neutral) ── */
-  --color-gray-50: #f9fafb;
-  --color-gray-100: #f3f4f6;
-  --color-gray-200: #e5e7eb;
-  --color-gray-300: #d1d5db;
-  --color-gray-400: #9ca3af;
-  --color-gray-500: #6b7280;
-  --color-gray-600: #4b5563;
-  --color-gray-700: #374151;
-  --color-gray-800: #1f2937;
-  --color-gray-900: #111827;
+  /* ——— canvas & surfaces (warm whites) ——— */
+  --color-canvas: #f7f6f3;
+  --color-surface: #ffffff;
+  --color-subtle: #f3f2ee;
+  --color-muted: #edece8;
+  --color-sidebar: #f3f2ee;
+  --color-sidebar-active: #e8e6e0;
 
-  /* ── Color: Accent (blue) ── */
-  --color-accent-50: #eff6ff;
-  --color-accent-100: #dbeafe;
-  --color-accent-200: #bfdbfe;
-  --color-accent-300: #93c5fd;
-  --color-accent-400: #60a5fa;
-  --color-accent-500: #3b82f6;
-  --color-accent-600: #2563eb;
-  --color-accent-700: #1d4ed8;
+  /* ——— ink ——— */
+  --color-fg: #16150f;
+  --color-fg-2: #3a3930;
+  --color-fg-muted: #6f6d63;
+  --color-fg-subtle: #9a988e;
+  --color-fg-inverse: #fafaf7;
 
-  /* ── Color: Semantic ── */
-  --color-success-50: #f0fdf4;
-  --color-success-500: #22c55e;
-  --color-success-600: #16a34a;
-  --color-success-700: #15803d;
+  /* ——— lines ——— */
+  --color-border: #e6e4de;
+  --color-border-strong: #d6d3ca;
+  --color-divider: #eeece6;
 
-  --color-warning-50: #fffbeb;
-  --color-warning-500: #f59e0b;
-  --color-warning-600: #d97706;
+  /* ——— accent (design default: blue) ——— */
+  --color-accent: #2e5bff;
+  --color-accent-hover: #1f46db;
+  --color-accent-soft: rgba(46, 91, 255, 0.08);
+  --color-accent-ring: rgba(46, 91, 255, 0.18);
+  --color-on-accent: #ffffff;
 
-  --color-error-50: #fef2f2;
-  --color-error-500: #ef4444;
-  --color-error-600: #dc2626;
-  --color-error-700: #b91c1c;
+  /* ——— semantic ——— */
+  --color-success: #0e7b4e;
+  --color-success-soft: rgba(14, 123, 78, 0.08);
+  --color-warn: #b35c00;
+  --color-warn-soft: rgba(179, 92, 0, 0.08);
+  --color-danger: #b42318;
+  --color-danger-soft: rgba(180, 35, 24, 0.06);
 
-  /* ── Typography ── */
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Legacy alias groups — kept so existing Tailwind classes like
+     `bg-accent-500`, `text-error-700`, `bg-success-50` continue to
+     compile without touching every file. Values resolved to the
+     closest design-token equivalent. */
+  --color-accent-50: rgba(46, 91, 255, 0.06);
+  --color-accent-100: rgba(46, 91, 255, 0.12);
+  --color-accent-200: rgba(46, 91, 255, 0.22);
+  --color-accent-300: #7a96ff;
+  --color-accent-400: #5a7dff;
+  --color-accent-500: #2e5bff;
+  --color-accent-600: #1f46db;
+  --color-accent-700: #1938b5;
+  --color-accent-800: #142c8f;
 
-  --text-xs: 0.8125rem;
-  --text-xs--line-height: 1.125rem;
-  --text-sm: 0.9375rem;
-  --text-sm--line-height: 1.375rem;
-  --text-base: 1rem;
-  --text-base--line-height: 1.5rem;
-  --text-lg: 1.125rem;
-  --text-lg--line-height: 1.625rem;
-  --text-xl: 1.375rem;
-  --text-xl--line-height: 1.875rem;
-  --text-2xl: 1.625rem;
-  --text-2xl--line-height: 2.125rem;
+  --color-success-50: rgba(14, 123, 78, 0.06);
+  --color-success-100: rgba(14, 123, 78, 0.12);
+  --color-success-200: rgba(14, 123, 78, 0.2);
+  --color-success-500: #0e7b4e;
+  --color-success-600: #0b6340;
+  --color-success-700: #084b30;
 
-  /* ── Border Radius (sharp, Linear-style) ── */
-  --radius-sm: 4px;
-  --radius: 6px;
-  --radius-md: 6px;
+  --color-warning-50: rgba(179, 92, 0, 0.06);
+  --color-warning-500: #b35c00;
+  --color-warning-600: #8a4600;
+  --color-warn-500: #b35c00;
+
+  --color-error-50: rgba(180, 35, 24, 0.06);
+  --color-error-100: rgba(180, 35, 24, 0.12);
+  --color-error-200: rgba(180, 35, 24, 0.22);
+  --color-error-500: #b42318;
+  --color-error-600: #931c13;
+  --color-error-700: #7a170f;
+
+  /* ——— gray scale (warm) — kept so existing `bg-gray-N`/`text-gray-N` utilities work ——— */
+  --color-gray-50: #f7f6f3;
+  --color-gray-100: #f3f2ee;
+  --color-gray-200: #edece8;
+  --color-gray-300: #e6e4de;
+  --color-gray-400: #d6d3ca;
+  --color-gray-500: #9a988e;
+  --color-gray-600: #6f6d63;
+  --color-gray-700: #3a3930;
+  --color-gray-800: #28271f;
+  --color-gray-900: #16150f;
+
+  /* Slate alias — existing pages use bg-slate-* a lot; mirror gray. */
+  --color-slate-50: #f7f6f3;
+  --color-slate-100: #f3f2ee;
+  --color-slate-200: #edece8;
+  --color-slate-300: #e6e4de;
+  --color-slate-400: #d6d3ca;
+  --color-slate-500: #9a988e;
+  --color-slate-600: #6f6d63;
+  --color-slate-700: #3a3930;
+  --color-slate-800: #28271f;
+  --color-slate-900: #16150f;
+  --color-slate-950: #0d0c08;
+
+  /* ——— typography ——— */
+  --font-sans:
+    "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    "Geist Mono", ui-monospace, "JetBrains Mono", "SF Mono", monospace;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-lg: 16px;
+  --text-lg--line-height: 22px;
+  --text-xl: 18px;
+  --text-xl--line-height: 24px;
+  --text-2xl: 22px;
+  --text-2xl--line-height: 28px;
+  --text-3xl: 28px;
+  --text-3xl--line-height: 34px;
+
+  /* ——— radius ——— */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-md: 8px;
   --radius-lg: 10px;
-  --radius-xl: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
   --radius-full: 999px;
 
-  /* ── Shadows ── */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.12);
+  /* ——— shadows (quiet) ——— */
+  --shadow-xs: 0 1px 0 rgba(20, 19, 14, 0.03);
+  --shadow-sm:
+    0 1px 2px rgba(20, 19, 14, 0.04), 0 0 0 1px var(--color-border);
+  --shadow-md:
+    0 6px 20px -8px rgba(20, 19, 14, 0.12),
+    0 1px 2px rgba(20, 19, 14, 0.04);
+  --shadow-lg:
+    0 24px 64px -24px rgba(20, 19, 14, 0.22),
+    0 2px 6px rgba(20, 19, 14, 0.06);
+  --shadow-pop:
+    0 14px 40px -12px rgba(20, 19, 14, 0.18),
+    0 2px 6px rgba(20, 19, 14, 0.06);
 
-  /* ── Animation ── */
+  /* ——— animation ——— */
   --animate-fade-in: fade-in 0.2s ease-out;
   --animate-slide-up: slide-up 0.2s ease-out;
+  --animate-modal-in: modal-in 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @keyframes fade-in {
@@ -99,14 +174,243 @@
   }
 }
 
-/* ── Base layer overrides ── */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ——— base layer ——— */
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
   body {
     font-family: var(--font-sans);
     font-size: var(--text-sm);
-    color: var(--color-gray-800);
-    background-color: var(--color-gray-50);
+    color: var(--color-fg);
+    background-color: var(--color-canvas);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-feature-settings:
+      "ss01",
+      "cv11";
+  }
+  button {
+    font-family: inherit;
+  }
+  input,
+  textarea {
+    font-family: inherit;
+    color: inherit;
+  }
+  input:focus,
+  textarea:focus {
+    outline: none;
+  }
+}
+
+/* ——— component primitives ——— */
+@layer components {
+  .mono {
+    font-family: var(--font-mono);
+    font-feature-settings:
+      "ss01",
+      "zero";
+  }
+  .serif {
+    font-family: var(--font-serif);
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scroll::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scroll::-webkit-scrollbar-thumb {
+    background: rgba(20, 19, 14, 0.14);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(20, 19, 14, 0.24);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* eyebrow (section label) */
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    color: var(--color-fg-subtle);
+    text-transform: uppercase;
+  }
+
+  /* card */
+  .brifo-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+  }
+
+  /* button primitives */
+  .brifo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-fg);
+    cursor: pointer;
+    transition:
+      background 120ms,
+      border-color 120ms,
+      transform 60ms;
+    white-space: nowrap;
+  }
+  .brifo-btn:hover {
+    background: var(--color-subtle);
+  }
+  .brifo-btn:active {
+    transform: translateY(0.5px);
+  }
+  .brifo-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .brifo-btn-primary {
+    background: var(--color-fg);
+    color: var(--color-fg-inverse);
+    border-color: var(--color-fg);
+  }
+  .brifo-btn-primary:hover {
+    background: #000;
+    border-color: #000;
+  }
+  .brifo-btn-accent {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    border-color: var(--color-accent);
+  }
+  .brifo-btn-accent:hover {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+  }
+  .brifo-btn-ghost {
+    border-color: transparent;
+    background: transparent;
+  }
+  .brifo-btn-ghost:hover {
+    background: var(--color-subtle);
+  }
+  .brifo-btn-danger {
+    color: var(--color-danger);
+    border-color: #e8cfcb;
+  }
+  .brifo-btn-danger:hover {
+    background: var(--color-danger-soft);
+  }
+  .brifo-btn-sm {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+  .brifo-btn-lg {
+    height: 38px;
+    padding: 0 16px;
+    font-size: 14px;
+  }
+
+  /* chip */
+  .brifo-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    background: var(--color-muted);
+    color: var(--color-fg-2);
+    border: 1px solid var(--color-border);
+  }
+  .brifo-chip-accent {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+    border-color: transparent;
+  }
+  .brifo-chip-success {
+    background: var(--color-success-soft);
+    color: var(--color-success);
+    border-color: transparent;
+  }
+  .brifo-chip-warn {
+    background: var(--color-warn-soft);
+    color: var(--color-warn);
+    border-color: transparent;
+  }
+  .brifo-chip-danger {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+    border-color: transparent;
+  }
+
+  /* input */
+  .brifo-input {
+    height: 34px;
+    width: 100%;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    padding: 0 10px;
+    font-size: 13px;
+    color: var(--color-fg);
+    transition:
+      border-color 120ms,
+      box-shadow 120ms;
+  }
+  .brifo-input:hover {
+    border-color: var(--color-border-strong);
+  }
+  .brifo-input:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-ring);
+  }
+  textarea.brifo-input {
+    height: auto;
+    padding: 10px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  .focus-ring:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-accent-ring);
+    border-color: var(--color-accent);
   }
 }

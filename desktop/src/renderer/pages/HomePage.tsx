@@ -2,8 +2,29 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "../store/app-store";
 import { startAutoCapture, PermissionError } from "../lib/auto-capture";
-import { Button, Card, StatCard, EmptyState, Skeleton } from "../components/ui";
 import { PermissionErrorBanner } from "../components/PermissionErrorBanner";
+import {
+  ActionRow,
+  Card,
+  CardHeader,
+  DButton,
+  EmptyInline,
+  KpiCard,
+  PageHeader,
+  PriorityDot,
+  TaskTypeChip,
+} from "../components/design";
+import {
+  IconArrowRight,
+  IconCalendar,
+  IconClock,
+  IconDocuments,
+  IconJoin,
+  IconMeetings,
+  IconNote,
+  IconTasks,
+  IconVideo,
+} from "../components/icons";
 
 interface DashboardMeeting {
   id: string;
@@ -32,10 +53,38 @@ function buildEventDedupeKey(event: {
   ].join("|");
 }
 
+function formatTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDay(iso: string) {
+  return new Date(iso)
+    .toLocaleDateString([], { weekday: "short" })
+    .toUpperCase();
+}
+
+function formatDateLong(d: Date) {
+  return d.toLocaleDateString([], {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 5) return "Good evening";
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export function HomePage() {
   const navigate = useNavigate();
   const tasks = useAppStore((state) => state.tasks);
   const meetings = useAppStore((state) => state.meetings);
+  const user = useAppStore((state) => state.user);
   const upcomingEvents = useAppStore((state) => state.upcomingEvents);
   const loadDashboard = useAppStore((state) => state.loadDashboard);
   const [error, setError] = useState<string | null>(null);
@@ -50,38 +99,17 @@ export function HomePage() {
 
   const dedupedUpcomingEvents = useMemo(() => {
     const map = new Map<string, (typeof upcomingEvents)[number]>();
-
     for (const event of upcomingEvents) {
       const key = buildEventDedupeKey(event);
-      if (!map.has(key)) {
-        map.set(key, event);
-      }
+      if (!map.has(key)) map.set(key, event);
     }
-
     return Array.from(map.values());
   }, [upcomingEvents]);
 
-  const stats = useMemo(() => {
-    const openTasks = tasks.length;
-    const todaysCount = dedupedUpcomingEvents.filter((event) => {
-      const date = new Date(event.startTime);
-      return date.toDateString() === new Date().toDateString();
-    }).length;
-
-    // Time saved: each completed meeting where Brifo generated notes saves ~20 min
-    const completedCount = meetings.filter(
-      (m) => m.status === "completed" || m.status === "processing",
-    ).length;
-    const savedMinutes = completedCount * 20;
-    const savedHours = savedMinutes / 60;
-
-    return {
-      openTasks,
-      completedMeetings: todaysCount,
-      estimatedSavedHours:
-        savedHours >= 1 ? `${savedHours.toFixed(1)}h` : `${savedMinutes}m`,
-    };
-  }, [tasks, dedupedUpcomingEvents, meetings]);
+  const pendingTasks = useMemo(
+    () => tasks.filter((t) => !t.approved).slice(0, 3),
+    [tasks],
+  );
 
   const todaysMeetings = useMemo(() => {
     const now = Date.now();
@@ -116,9 +144,28 @@ export function HomePage() {
       );
   }, [dedupedUpcomingEvents]);
 
-  function onQuickNote() {
-    navigate("/quick-note");
-  }
+  const kpi = useMemo(() => {
+    const pending = tasks.filter((t) => !t.approved).length;
+    const today = todaysMeetings.length;
+    const docsThisWeek = meetings.filter((m) => {
+      if (!m.startTime) return false;
+      const t = new Date(m.startTime).getTime();
+      return Date.now() - t < 7 * 24 * 60 * 60 * 1000;
+    }).length;
+    const completed = meetings.filter(
+      (m) => m.status === "completed" || m.status === "processing",
+    ).length;
+    const savedMin = completed * 20;
+    const savedLabel =
+      savedMin >= 60 ? `${(savedMin / 60).toFixed(1)}h` : `${savedMin}m`;
+    return {
+      tasksAssigned: tasks.length,
+      tasksPending: pending,
+      meetingsToday: today,
+      docsThisWeek,
+      savedLabel,
+    };
+  }, [tasks, meetings, todaysMeetings.length]);
 
   async function onMeetingAction(item: DashboardMeeting) {
     lastAttemptedMeetingRef.current = item;
@@ -132,7 +179,6 @@ export function HomePage() {
       });
       setError(null);
       setIsPermissionError(false);
-      // Open meeting link in browser and navigate to Quick Note
       void window.electronAPI.openExternal(item.joinUrl);
       const query = new URLSearchParams({
         autoStart: "1",
@@ -151,184 +197,280 @@ export function HomePage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <Skeleton height={14} className="w-20 mb-2" />
-              <Skeleton height={28} className="w-12" />
-            </Card>
-          ))}
-        </div>
-        <Skeleton height={20} className="w-40" />
-        <div className="space-y-3">
-          {[1, 2].map((i) => (
-            <Card key={i}>
-              <div className="flex items-center gap-4">
-                <Skeleton width={64} height={48} variant="rect" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton height={16} className="w-3/4" />
-                  <Skeleton height={12} className="w-1/2" />
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const name = user?.name?.split(" ")[0] ?? "there";
 
   return (
-    <div className="space-y-6">
-      {error && isPermissionError ? (
-        <PermissionErrorBanner
-          error={error}
-          onRetry={() => {
-            setError(null);
-            setIsPermissionError(false);
-            if (lastAttemptedMeetingRef.current) {
-              void onMeetingAction(lastAttemptedMeetingRef.current);
-            }
-          }}
-          onDismiss={() => {
-            setError(null);
-            setIsPermissionError(false);
-          }}
-        />
-      ) : error ? (
-        <div className="rounded-lg bg-error-50 border border-error-500/20 px-4 py-3">
-          <p className="text-sm text-error-700">{error}</p>
-        </div>
-      ) : null}
+    <div className="flex flex-col">
+      <PageHeader
+        eyebrow={formatDateLong(new Date())}
+        title={`${greeting()}, ${name}`}
+        subtitle={`You have ${kpi.meetingsToday || "no"} meeting${kpi.meetingsToday === 1 ? "" : "s"} today${kpi.tasksPending ? ` and ${kpi.tasksPending} task${kpi.tasksPending === 1 ? "" : "s"} waiting for review` : ""}.`}
+        actions={
+          <>
+            <DButton
+              variant="default"
+              onClick={() => navigate("/meetings")}
+            >
+              <IconCalendar width={13} height={13} />
+              This week
+            </DButton>
+            <DButton variant="accent" onClick={() => navigate("/quick-note")}>
+              <IconNote width={13} height={13} />
+              Quick Note
+            </DButton>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-3 gap-4">
-        <StatCard
-          icon={
-            <span className="material-symbols-rounded text-lg">task_alt</span>
-          }
-          label="Tasks Assigned"
-          value={stats.openTasks}
-        />
-        <StatCard
-          icon={
-            <span className="material-symbols-rounded text-lg">
-              description
-            </span>
-          }
-          label="Meetings Today"
-          value={stats.completedMeetings}
-        />
-        <StatCard
-          icon={
-            <span className="material-symbols-rounded text-lg">schedule</span>
-          }
-          label="Time Saved"
-          value={stats.estimatedSavedHours}
-        />
-      </div>
-
-      <Card padding="md" className="flex items-center justify-between">
-        <div>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-            Quick Actions
-          </h3>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Seamlessly integrate your workflow
-          </p>
-        </div>
-        <Button variant="primary" size="sm" onClick={() => void onQuickNote()}>
-          <span className="material-symbols-rounded text-base" aria-hidden>
-            add
-          </span>
-          Quick Note
-        </Button>
-      </Card>
-
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-            Today's Meetings
-          </h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/meetings")}
-          >
-            View Calendar
-          </Button>
-        </div>
-
-        {todaysMeetings.length ? (
-          <div className="space-y-2">
-            {todaysMeetings.map((meeting, index) => {
-              const meetingTime = new Date(meeting.startTime);
-
-              return (
-                <Card
-                  key={`${meeting.id}_${index}`}
-                  padding="none"
-                  className="flex items-center justify-between px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex flex-col items-center justify-center h-12 w-16 rounded-lg bg-slate-100 text-slate-800">
-                      <span className="text-sm font-semibold leading-tight">
-                        {meetingTime.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                      <span className="text-xs text-slate-500 uppercase">
-                        {meetingTime.toLocaleDateString([], {
-                          weekday: "short",
-                        })}
-                      </span>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className="material-symbols-rounded text-gray-400 text-base"
-                          aria-hidden
-                        >
-                          videocam
-                        </span>
-                        <h4 className="text-sm font-medium text-gray-800">
-                          {meeting.title || "Untitled Meeting"}
-                        </h4>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => void onMeetingAction(meeting)}
-                  >
-                    <span
-                      className="material-symbols-rounded text-base"
-                      aria-hidden
-                    >
-                      login
-                    </span>
-                    Join
-                  </Button>
-                </Card>
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyState
-            icon={<span className="material-symbols-rounded">event_busy</span>}
-            title="No upcoming meetings for today"
-            description="Only today's future Google Calendar meetings appear here."
-            action={{
-              label: "Open calendar",
-              onClick: () => navigate("/meetings"),
+      <div className="px-8 pb-8 flex flex-col gap-5">
+        {error && isPermissionError ? (
+          <PermissionErrorBanner
+            error={error}
+            onRetry={() => {
+              setError(null);
+              setIsPermissionError(false);
+              if (lastAttemptedMeetingRef.current) {
+                void onMeetingAction(lastAttemptedMeetingRef.current);
+              }
+            }}
+            onDismiss={() => {
+              setError(null);
+              setIsPermissionError(false);
             }}
           />
-        )}
+        ) : error ? (
+          <div
+            className="rounded-lg px-4 py-3 text-[13px]"
+            style={{
+              background: "var(--color-danger-soft)",
+              color: "var(--color-danger)",
+              border: "1px solid rgba(180,35,24,0.18)",
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
+
+        {/* KPI row */}
+        <div className="grid grid-cols-4 gap-3">
+          <KpiCard
+            label="Tasks assigned"
+            value={loading ? "—" : kpi.tasksAssigned}
+            hint={
+              kpi.tasksPending > 0
+                ? `${kpi.tasksPending} need approval`
+                : "All caught up"
+            }
+            icon={IconTasks}
+          />
+          <KpiCard
+            label="Meetings today"
+            value={loading ? "—" : kpi.meetingsToday}
+            hint={
+              todaysMeetings[0]
+                ? `Next at ${formatTime(todaysMeetings[0].startTime)}`
+                : "Nothing scheduled"
+            }
+            icon={IconMeetings}
+          />
+          <KpiCard
+            label="Meetings this week"
+            value={loading ? "—" : kpi.docsThisWeek}
+            hint="Automatically captured"
+            icon={IconDocuments}
+          />
+          <KpiCard
+            label="Time saved"
+            value={loading ? "—" : kpi.savedLabel}
+            hint="vs. manual note-taking"
+            icon={IconClock}
+            tone="accent"
+          />
+        </div>
+
+        {/* Two-column */}
+        <div className="grid gap-4" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
+          {/* Today card */}
+          <Card padding="none" className="overflow-hidden">
+            <CardHeader
+              title="Today's meetings"
+              meta={
+                todaysMeetings.length
+                  ? `${todaysMeetings.length} scheduled`
+                  : "None scheduled"
+              }
+              actions={
+                <DButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/meetings")}
+                >
+                  Calendar
+                  <IconArrowRight width={12} height={12} />
+                </DButton>
+              }
+            />
+            {todaysMeetings.length === 0 ? (
+              <EmptyInline
+                icon={IconCalendar}
+                title="No meetings today"
+                hint="Your calendar is clear. Enjoy the focus time."
+              />
+            ) : (
+              <div>
+                {todaysMeetings.map((m, i) => (
+                  <div
+                    key={m.id}
+                    className={`flex items-center gap-3 px-4 py-3 hover:bg-subtle transition-colors ${i > 0 ? "border-t border-divider" : ""}`}
+                  >
+                    <div
+                      className="flex flex-col items-center justify-center rounded-md flex-shrink-0"
+                      style={{
+                        width: 56,
+                        height: 42,
+                        background: "var(--color-subtle)",
+                      }}
+                    >
+                      <span className="mono text-[13px] font-semibold text-fg">
+                        {formatTime(m.startTime)}
+                      </span>
+                      <span className="text-[9.5px] text-fg-subtle mono tracking-wide">
+                        {formatDay(m.startTime)}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <IconVideo
+                          width={13}
+                          height={13}
+                          style={{ color: "var(--color-fg-subtle)" }}
+                        />
+                        <div
+                          className="text-[13px] font-medium text-fg truncate"
+                          title={m.title}
+                        >
+                          {m.title || "Untitled meeting"}
+                        </div>
+                      </div>
+                      <div className="mt-0.5 text-[11.5px] text-fg-muted">
+                        {m.endTime
+                          ? `${formatTime(m.startTime)} – ${formatTime(m.endTime)}`
+                          : formatTime(m.startTime)}
+                      </div>
+                    </div>
+                    <DButton
+                      variant="accent"
+                      size="sm"
+                      onClick={() => void onMeetingAction(m)}
+                    >
+                      <IconJoin width={12} height={12} />
+                      Join
+                    </DButton>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div
+              className="px-4 py-2.5 text-[11.5px] text-fg-muted flex items-center"
+              style={{ borderTop: "1px solid var(--color-divider)" }}
+            >
+              <span>Brifo auto-joins meetings you confirm.</span>
+              <div className="flex-1" />
+              <button
+                type="button"
+                onClick={() => navigate("/settings")}
+                className="text-fg-muted hover:text-fg transition-colors cursor-pointer"
+              >
+                Configure
+              </button>
+            </div>
+          </Card>
+
+          {/* Right column */}
+          <div className="flex flex-col gap-4">
+            {/* Quick actions */}
+            <Card padding="md">
+              <div className="mb-3">
+                <div className="text-[13px] font-semibold text-fg">
+                  Quick actions
+                </div>
+                <div className="text-[12px] text-fg-muted mt-0.5">
+                  Capture now, organize later.
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <ActionRow
+                  icon={IconNote}
+                  title="New Quick Note"
+                  hint="Type or record"
+                  primary
+                  onClick={() => navigate("/quick-note")}
+                />
+                <ActionRow
+                  icon={IconDocuments}
+                  title="New document"
+                  hint="Paste a transcript"
+                  onClick={() => navigate("/documents")}
+                />
+                <ActionRow
+                  icon={IconTasks}
+                  title="New task"
+                  hint="Track an action item"
+                  onClick={() => navigate("/tasks")}
+                />
+              </div>
+            </Card>
+
+            {/* Waiting for approval */}
+            <Card padding="none" className="overflow-hidden">
+              <CardHeader
+                title="Waiting for approval"
+                meta={pendingTasks.length ? `${pendingTasks.length}` : "0"}
+                actions={
+                  <DButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate("/tasks")}
+                  >
+                    All tasks
+                    <IconArrowRight width={12} height={12} />
+                  </DButton>
+                }
+              />
+              {pendingTasks.length === 0 ? (
+                <EmptyInline
+                  icon={IconTasks}
+                  title="Nothing pending"
+                  hint="Generated tasks you need to review will show up here."
+                />
+              ) : (
+                <div className="px-2 pb-2 pt-1">
+                  {pendingTasks.map((t) => (
+                    <button
+                      type="button"
+                      key={t._id}
+                      onClick={() => navigate(`/tasks/${t._id}`)}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-subtle transition-colors text-left cursor-pointer"
+                    >
+                      <TaskTypeChip type={t.issueType} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12.5px] font-medium text-fg truncate">
+                          {t.summary}
+                        </div>
+                        {t.dueDate && (
+                          <div className="text-[11px] text-fg-muted mono truncate">
+                            due {t.dueDate}
+                          </div>
+                        )}
+                      </div>
+                      <PriorityDot priority={t.priority} showLabel={false} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -2,10 +2,8 @@ import {
   Notification,
   app,
   BrowserWindow,
-  desktopCapturer,
   ipcMain,
   nativeImage,
-  safeStorage,
   session,
   shell,
   systemPreferences,
@@ -18,14 +16,72 @@ import type { AddressInfo } from "node:net";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-// Enable system audio loopback capture on macOS (no external drivers needed).
-// These Chromium flags use ScreenCaptureKit to capture system audio output.
-app.commandLine.appendSwitch(
-  "enable-features",
-  "MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride",
-);
-
 const isDev = !app.isPackaged;
+
+// Register `brifo://` as a protocol handler so the web auth-success page
+// can jump the user back into the app. Must happen before app.whenReady().
+// On macOS, electron-builder also needs CFBundleURLTypes in Info.plist
+// (see desktop/package.json `mac.extendInfo`) so the registration survives
+// across launches of the packaged app.
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient("brifo", process.execPath, [
+      path.resolve(process.argv[1]),
+    ]);
+  }
+} else {
+  app.setAsDefaultProtocolClient("brifo");
+}
+
+// Ensure only one Brifo instance runs — a second launch (e.g. via
+// `brifo://…` from the browser) focuses the existing window instead of
+// spawning a duplicate. Grabs the protocol URL off the second instance's
+// argv on Windows/Linux; macOS uses the `open-url` event below.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, argv) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+    // Windows/Linux: the protocol URL is passed as an argv entry.
+    const deepLink = argv.find((arg) => arg.startsWith("brifo://"));
+    if (deepLink) {
+      handleBrifoDeepLink(deepLink);
+    }
+  });
+}
+
+app.on("open-url", (event, url) => {
+  // macOS: protocol launches arrive via this event.
+  event.preventDefault();
+  handleBrifoDeepLink(url);
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
+function handleBrifoDeepLink(url: string): void {
+  // Currently the deep link is purely a "come back to the app" signal —
+  // the browser's auth-success.html fires `brifo://auth-success?flow=…`
+  // after the OAuth exchange has already put a token in secure storage.
+  // If we ever need to pass a token through the URL, parse it here and
+  // forward to the renderer via IPC.
+  //
+  // Keep this side-effect free beyond logging so a malicious site that
+  // induces someone into opening `brifo://…` can't do anything harmful.
+  try {
+    // eslint-disable-next-line no-console
+    console.log("[brifo] deep link:", url);
+  } catch {
+    // swallow
+  }
+}
 let mainWindow: BrowserWindow | null = null;
 let resolvedAppIconPath: string | null = null;
 const execFileAsync = promisify(execFile);
@@ -40,6 +96,10 @@ const JIRA_OAUTH_CALLBACK_PORT = Number(
 );
 
 let captureActive = false;
+// True only when the current capture is tied to a real meeting (join URL or
+// calendar event). For Quick Notes this stays false, and the meeting-detector
+// skips the "signal gone → meeting-ended" logic entirely.
+let captureExpectsMeetingSignal = false;
 let detectorTimer: NodeJS.Timeout | null = null;
 let detectorTickInFlight = false;
 let candidateKey: string | null = null;
@@ -253,6 +313,12 @@ interface MeetingDetectedNotificationPayload {
 
 interface AuthStorePayload {
   token?: string;
+  // Legacy field from an earlier implementation that encrypted the token
+  // via Electron's safeStorage (login Keychain). That caused macOS to
+  // prompt for the login password on every ad-hoc rebuild, so we dropped
+  // it. We still read the field so that legacy encrypted payloads are
+  // treated as unreadable (→ user signs in once, then plaintext from
+  // there on). Never written with `true` by current code.
   encrypted?: boolean;
 }
 
@@ -273,17 +339,14 @@ async function readAuthStore(): Promise<AuthStorePayload> {
 async function writeAuthStore(payload: AuthStorePayload): Promise<void> {
   const filePath = getAuthStorePath();
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(payload), "utf8");
+  await fs.writeFile(filePath, JSON.stringify(payload), {
+    encoding: "utf8",
+    mode: 0o600,
+  });
 }
 
 async function setSecureToken(token: string): Promise<void> {
-  if (safeStorage.isEncryptionAvailable()) {
-    const encrypted = safeStorage.encryptString(token).toString("base64");
-    await writeAuthStore({ token: encrypted, encrypted: true });
-    return;
-  }
-
-  await writeAuthStore({ token, encrypted: false });
+  await writeAuthStore({ token });
 }
 
 async function getSecureToken(): Promise<string | null> {
@@ -293,11 +356,11 @@ async function getSecureToken(): Promise<string | null> {
   }
 
   if (payload.encrypted) {
-    try {
-      return safeStorage.decryptString(Buffer.from(payload.token, "base64"));
-    } catch {
-      return null;
-    }
+    // Legacy keychain-encrypted payload — we removed safeStorage to
+    // avoid the password prompt, so we can't read this. Wipe it and
+    // force a fresh sign-in (one-time after updating).
+    await clearSecureToken();
+    return null;
   }
 
   return payload.token;
@@ -868,6 +931,15 @@ async function runMeetingDetectorTick() {
     // and the meeting-end detector would never fire.
     if (captureActive) {
       resetMeetingDetectionCandidate();
+
+      // Quick Notes have no meeting context, so the detector must not try to
+      // decide the "meeting" has ended. Reset the grace timer and skip the
+      // signal-gone branch entirely.
+      if (!captureExpectsMeetingSignal) {
+        meetingGoneSinceMs = 0;
+        return;
+      }
+
       const outcome = await detectMeetingSignal(true);
       const now = Date.now();
 
@@ -1718,23 +1790,32 @@ app.whenReady().then(() => {
     });
   }
 
-  // Handle getDisplayMedia requests from the renderer to provide system audio
-  // loopback without showing a screen picker dialog.
-  session.defaultSession.setDisplayMediaRequestHandler(
-    async (_request, callback) => {
-      // Get a screen source so we can extract its ID for system audio
-      const sources = await desktopCapturer.getSources({ types: ["screen"] });
-      const primaryScreen = sources[0];
-      if (primaryScreen) {
-        callback({
-          video: primaryScreen,
-          audio: "loopback",
-        });
-      } else {
-        callback({});
-      }
-    },
-  );
+  // Silent, best-effort cleanup of stale macOS TCC entries. Brifo is
+  // now microphone-only — it no longer requests Screen Recording or
+  // Camera, but earlier builds (and dev runs under the Electron
+  // binary) can leave orphaned rows in System Settings that look
+  // confusing (duplicate "Brifo" entries with terminal icons).
+  // We drop those categories unconditionally on every production
+  // launch. We do NOT reset Microphone here — that would revoke the
+  // user's current grant and prompt them on every launch.
+  // tccutil returns non-zero when no entry exists; we ignore it.
+  if (process.platform === "darwin" && !isDev) {
+    void execFileAsync("tccutil", [
+      "reset",
+      "ScreenCapture",
+      "com.brifo.desktop",
+    ]).catch(() => undefined);
+    void execFileAsync("tccutil", [
+      "reset",
+      "Camera",
+      "com.brifo.desktop",
+    ]).catch(() => undefined);
+    void execFileAsync("tccutil", [
+      "reset",
+      "All",
+      "com.github.Electron",
+    ]).catch(() => undefined);
+  }
 
   ipcMain.handle("app:get-info", () => ({
     name: "Brifo",
@@ -1744,7 +1825,6 @@ app.whenReady().then(() => {
   ipcMain.handle("permissions:check", () => ({
     microphone: systemPreferences.getMediaAccessStatus("microphone"),
     camera: systemPreferences.getMediaAccessStatus("camera"),
-    screen: systemPreferences.getMediaAccessStatus("screen"),
     isDev,
   }));
 
@@ -1757,13 +1837,6 @@ app.whenReady().then(() => {
     if (process.platform !== "darwin") return;
     await shell.openExternal(
       "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
-    );
-  });
-
-  ipcMain.handle("permissions:open-screen-recording-settings", async () => {
-    if (process.platform !== "darwin") return;
-    await shell.openExternal(
-      "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
     );
   });
 
@@ -1786,8 +1859,14 @@ app.whenReady().then(() => {
   ipcMain.handle("auth:token:clear", () => clearSecureToken());
   ipcMain.on(
     "capture:status",
-    (_event, payload: { active?: boolean } | undefined) => {
+    (
+      _event,
+      payload:
+        | { active?: boolean; expectsMeetingSignal?: boolean }
+        | undefined,
+    ) => {
       captureActive = !!payload?.active;
+      captureExpectsMeetingSignal = !!payload?.expectsMeetingSignal;
       meetingGoneSinceMs = 0;
       if (captureActive) {
         resetMeetingDetectionCandidate();

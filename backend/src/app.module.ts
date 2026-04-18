@@ -14,6 +14,7 @@ import { SearchModule } from "./search/search.module";
 import { AuditModule } from "./audit/audit.module";
 import { HealthModule } from "./health/health.module";
 import { IntegrationsModule } from "./integrations/integrations.module";
+import { WellKnownModule } from "./well-known/well-known.module";
 import { envValidationSchema } from "./config/env.validation";
 
 @Module({
@@ -66,6 +67,7 @@ import { envValidationSchema } from "./config/env.validation";
     AuditModule,
     HealthModule,
     IntegrationsModule,
+    WellKnownModule,
   ],
   providers: [
     {

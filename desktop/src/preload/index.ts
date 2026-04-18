@@ -10,7 +10,6 @@ const electronAPI = {
     ipcRenderer.invoke("permissions:check") as Promise<{
       microphone: string;
       camera: string;
-      screen: string;
       isDev: boolean;
     }>,
   startGoogleAuth: (payload: { clientId: string; clientSecret?: string }) =>
@@ -37,16 +36,18 @@ const electronAPI = {
   getAuthToken: () =>
     ipcRenderer.invoke("auth:token:get") as Promise<string | null>,
   clearAuthToken: () => ipcRenderer.invoke("auth:token:clear") as Promise<void>,
-  setCaptureActive: (active: boolean) =>
-    ipcRenderer.send("capture:status", { active }),
+  setCaptureActive: (
+    active: boolean,
+    opts?: { expectsMeetingSignal?: boolean },
+  ) =>
+    ipcRenderer.send("capture:status", {
+      active,
+      expectsMeetingSignal: !!opts?.expectsMeetingSignal,
+    }),
   requestMicrophoneAccess: () =>
     ipcRenderer.invoke("permissions:request-microphone") as Promise<boolean>,
   openMicrophoneSettings: () =>
     ipcRenderer.invoke("permissions:open-microphone-settings") as Promise<void>,
-  openScreenRecordingSettings: () =>
-    ipcRenderer.invoke(
-      "permissions:open-screen-recording-settings",
-    ) as Promise<void>,
   openExternal: (url: string) =>
     ipcRenderer.invoke("external:open", url) as Promise<void>,
   showMeetingDetectedNotification: (payload: {

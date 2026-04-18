@@ -6,12 +6,10 @@ interface Window {
     checkPermissions: () => Promise<{
       microphone: string;
       camera: string;
-      screen: string;
       isDev: boolean;
     }>;
     requestMicrophoneAccess: () => Promise<boolean>;
     openMicrophoneSettings: () => Promise<void>;
-    openScreenRecordingSettings: () => Promise<void>;
     startGoogleAuth: (payload: {
       clientId: string;
       clientSecret?: string;
@@ -38,7 +36,10 @@ interface Window {
     setAuthToken: (token: string) => Promise<void>;
     getAuthToken: () => Promise<string | null>;
     clearAuthToken: () => Promise<void>;
-    setCaptureActive: (active: boolean) => void;
+    setCaptureActive: (
+      active: boolean,
+      opts?: { expectsMeetingSignal?: boolean },
+    ) => void;
     openExternal: (url: string) => Promise<void>;
     showMeetingDetectedNotification: (payload: {
       sourceApp?: string;

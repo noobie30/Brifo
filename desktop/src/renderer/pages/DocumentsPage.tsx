@@ -9,19 +9,24 @@ import {
 import { useAppStore } from "../store/app-store";
 import { NoteRecord } from "../types";
 import {
-  Button,
-  Badge,
   Card,
-  Select,
-  Input,
-  Textarea,
-  Field,
-  Dialog,
+  Chip,
+  DButton,
+  EmptyInline,
+  KpiCard,
   PageHeader,
-  EmptyState,
-  Skeleton,
-  StatCard,
-} from "../components/ui";
+} from "../components/design";
+import {
+  IconCalendar,
+  IconCheckCircle,
+  IconClipboard,
+  IconClock,
+  IconDocuments,
+  IconMoreV,
+  IconSparkles,
+  IconTrash,
+  IconX,
+} from "../components/icons";
 
 type DateFilter = "all" | "week" | "month";
 
@@ -31,68 +36,32 @@ interface DocumentEntry {
   date: string;
   source: "manual" | "calendar";
   status: "scheduled" | "in_progress" | "processing" | "completed" | "failed";
-  tags: string[];
+  tag: string;
+  words: number | null;
+  tasks: number | null;
 }
 
 function getDateFilterMatch(dateValue: string, filter: DateFilter) {
-  if (filter === "all") {
-    return true;
-  }
-
+  if (filter === "all") return true;
   const now = Date.now();
   const target = new Date(dateValue).getTime();
-  if (!Number.isFinite(target)) {
-    return false;
-  }
+  if (!Number.isFinite(target)) return false;
   const rangeDays = filter === "week" ? 7 : 30;
   const windowMs = rangeDays * 24 * 60 * 60 * 1000;
   const diffMs = now - target;
-
   return diffMs >= 0 && diffMs <= windowMs;
 }
 
 function getDocumentTone(index: number) {
-  const tones = [
-    { icon: "description", tone: "indigo", label: "Strategy" },
-    { icon: "terminal", tone: "amber", label: "Technical" },
-    { icon: "analytics", tone: "emerald", label: "Finance" },
-    { icon: "campaign", tone: "rose", label: "Marketing" },
-  ] as const;
-
+  const tones = ["Strategy", "Technical", "Finance", "Marketing", "Design"];
   return tones[index % tones.length];
 }
 
-const toneIconBg: Record<string, string> = {
-  indigo: "bg-indigo-50 text-indigo-600",
-  amber: "bg-amber-50 text-amber-600",
-  emerald: "bg-emerald-50 text-emerald-600",
-  rose: "bg-rose-50 text-rose-600",
-};
-
-const statusBadgeVariant: Record<
-  DocumentEntry["status"],
-  "default" | "accent" | "success" | "warning" | "error"
-> = {
-  scheduled: "default",
-  in_progress: "accent",
-  processing: "warning",
-  completed: "success",
-  failed: "error",
-};
-
 function summarizeStatus(status: DocumentEntry["status"]) {
-  if (status === "completed") {
-    return "Summary ready";
-  }
-  if (status === "processing") {
-    return "Generating notes";
-  }
-  if (status === "in_progress") {
-    return "Live capture";
-  }
-  if (status === "failed") {
-    return "Needs retry";
-  }
+  if (status === "completed") return "Summary ready";
+  if (status === "processing") return "Generating notes";
+  if (status === "in_progress") return "Live capture";
+  if (status === "failed") return "Needs retry";
   return "Scheduled";
 }
 
@@ -106,23 +75,6 @@ function createDefaultManualTitle() {
   return `Manual Note ${new Date().toLocaleString()}`;
 }
 
-function DocumentRowSkeleton() {
-  return (
-    <Card padding="none" className="flex items-center gap-4 px-4 py-3">
-      <Skeleton variant="rect" width={40} height={40} />
-      <div className="flex-1 space-y-2">
-        <Skeleton width="60%" height={14} />
-        <Skeleton width="80%" height={12} />
-      </div>
-      <div className="flex flex-col items-end gap-1">
-        <Skeleton width={80} height={12} />
-        <Skeleton width={64} height={18} variant="rect" />
-      </div>
-      <Skeleton variant="circle" width={32} height={32} />
-    </Card>
-  );
-}
-
 export function DocumentsPage() {
   const navigate = useNavigate();
   const meetings = useAppStore((state) => state.meetings);
@@ -132,6 +84,7 @@ export function DocumentsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [tagFilter, setTagFilter] = useState<string>("all");
   const [visibleCount, setVisibleCount] = useState(20);
   const scrollSentinelRef = useRef<HTMLDivElement | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -176,33 +129,25 @@ export function DocumentsPage() {
 
   useEffect(() => {
     setVisibleCount(20);
-  }, [dateFilter]);
+  }, [dateFilter, tagFilter]);
 
   const loadMore = useCallback(() => {
     setVisibleCount((prev) => prev + 20);
   }, []);
 
   useEffect(() => {
-    if (!isCreateDialogOpen) {
-      return;
-    }
-
+    if (!isCreateDialogOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !isSubmittingManual) {
         setIsCreateDialogOpen(false);
       }
     };
-
     window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [isCreateDialogOpen, isSubmittingManual]);
 
   async function onDeleteDocument(meetingId: string) {
-    if (!confirm("Are you sure you want to delete this document?")) {
-      return;
-    }
+    if (!confirm("Delete this document?")) return;
     try {
       setDeletingId(meetingId);
       setError(null);
@@ -228,39 +173,30 @@ export function DocumentsPage() {
   }
 
   function onCloseCreateDialog() {
-    if (isSubmittingManual) {
-      return;
-    }
+    if (isSubmittingManual) return;
     setIsCreateDialogOpen(false);
   }
 
   async function onSubmitManualGeneration() {
-    if (isSubmittingManual) {
-      return;
-    }
-
+    if (isSubmittingManual) return;
     const normalizedTranscript = manualTranscript.trim();
     if (!normalizedTranscript) {
       setManualSubmitError("Paste a transcript before generating.");
       return;
     }
-
     const normalizedTitle =
       manualMeetingTitle.trim() || createDefaultManualTitle();
     const selectedOutputMode = manualOutputMode;
     const meetingId = createManualMeetingId();
-
     try {
       setIsSubmittingManual(true);
       setManualSubmitError(null);
-
       const generated = await generateNotes(meetingId, {
         meetingTitle: normalizedTitle,
         rawUserNotes: normalizedTranscript,
         templateUsed: "general",
         outputMode: selectedOutputMode,
       });
-
       setNotes((prev) => [
         generated,
         ...prev.filter((note) => note.meetingId !== generated.meetingId),
@@ -268,12 +204,10 @@ export function DocumentsPage() {
       setError(null);
       await loadDashboard();
       setIsCreateDialogOpen(false);
-
       if (selectedOutputMode === "tasks") {
         navigate("/tasks");
         return;
       }
-
       navigate(`/documents/${generated.meetingId}`);
     } catch (generationError) {
       setManualSubmitError(
@@ -288,28 +222,23 @@ export function DocumentsPage() {
 
   const meetingById = useMemo(() => {
     const map = new Map<string, (typeof meetings)[number]>();
-    for (const meeting of meetings) {
-      map.set(meeting._id, meeting);
-    }
+    for (const meeting of meetings) map.set(meeting._id, meeting);
     return map;
   }, [meetings]);
 
-  const documentEntries = useMemo(() => {
+  const documentEntries = useMemo<DocumentEntry[]>(() => {
     const ordered = [...notes].sort((a, b) => {
       const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
       const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
       return bTime - aTime;
     });
-
     return ordered.map((note, index) => {
-      const tone = getDocumentTone(index);
+      const tag = getDocumentTone(index);
       const linkedMeeting = meetingById.get(note.meetingId);
       const status = linkedMeeting?.status ?? "completed";
       const source: DocumentEntry["source"] =
         linkedMeeting?.source ??
         (note.meetingId.includes(":") ? "calendar" : "manual");
-      const statusText = summarizeStatus(status);
-
       return {
         id: note.meetingId,
         title:
@@ -317,45 +246,47 @@ export function DocumentsPage() {
         date: note.updatedAt || note.createdAt || new Date().toISOString(),
         source,
         status,
-        tags: [
-          tone.label,
-          note.templateUsed || "General",
-          source === "calendar" ? "Calendar" : "Manual",
-        ],
-      } satisfies DocumentEntry;
+        tag,
+        words: note.rawUserNotes
+          ? note.rawUserNotes.trim().split(/\s+/).length
+          : null,
+        tasks: null,
+      };
     });
   }, [meetingById, notes]);
 
+  const availableTags = useMemo(() => {
+    const s = new Set<string>();
+    for (const entry of documentEntries) s.add(entry.tag);
+    return Array.from(s);
+  }, [documentEntries]);
+
   const filteredDocuments = useMemo(
     () =>
-      documentEntries.filter((entry) =>
-        getDateFilterMatch(entry.date, dateFilter),
+      documentEntries.filter(
+        (entry) =>
+          getDateFilterMatch(entry.date, dateFilter) &&
+          (tagFilter === "all" || entry.tag === tagFilter),
       ),
-    [dateFilter, documentEntries],
+    [dateFilter, tagFilter, documentEntries],
   );
 
   const visibleDocuments = filteredDocuments.slice(0, visibleCount);
 
   useEffect(() => {
     const sentinel = scrollSentinelRef.current;
-    if (!sentinel) {
-      return;
-    }
-
+    if (!sentinel) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) {
-          loadMore();
-        }
+        if (entries[0]?.isIntersecting) loadMore();
       },
       { rootMargin: "200px" },
     );
-
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [loadMore, filteredDocuments.length]);
 
-  const docStats = useMemo(() => {
+  const kpi = useMemo(() => {
     const total = documentEntries.length;
     const thisWeek = documentEntries.filter((d) =>
       getDateFilterMatch(d.date, "week"),
@@ -366,245 +297,441 @@ export function DocumentsPage() {
     const processing = documentEntries.filter(
       (d) => d.status === "processing" || d.status === "in_progress",
     ).length;
-    return [
-      {
-        label: "Total Documents",
-        value: total,
-        icon: (
-          <span className="material-symbols-rounded text-lg">description</span>
-        ),
-      },
-      {
-        label: "This Week",
-        value: thisWeek,
-        icon: (
-          <span className="material-symbols-rounded text-lg">date_range</span>
-        ),
-      },
-      {
-        label: "Completed",
-        value: completed,
-        icon: (
-          <span className="material-symbols-rounded text-lg">task_alt</span>
-        ),
-      },
-      {
-        label: "Processing",
-        value: processing,
-        icon: <span className="material-symbols-rounded text-lg">sync</span>,
-      },
-    ];
+    return { total, thisWeek, completed, processing };
   }, [documentEntries]);
 
   return (
-    <section className="max-w-5xl mx-auto space-y-6">
-      {/* Page Header */}
+    <div className="flex flex-col">
       <PageHeader
+        eyebrow="Library"
         title="Documents"
         subtitle="Auto-generated summaries and transcripts from your meetings."
         actions={
-          <Button variant="primary" size="md" onClick={onOpenCreateDialog}>
-            <span className="material-symbols-outlined text-base">add</span>
-            Add Transcript
-          </Button>
+          <>
+            <DButton variant="default" size="sm">
+              <IconCalendar width={12} height={12} />
+              Date range
+            </DButton>
+            <DButton variant="accent" size="sm" onClick={onOpenCreateDialog}>
+              <IconClipboard width={12} height={12} />
+              Add transcript
+            </DButton>
+          </>
         }
       />
 
-      {/* Stat Cards */}
-      <section
-        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-        aria-label="Document summary"
-      >
-        {docStats.map((stat) => (
-          <StatCard
-            key={stat.label}
-            icon={stat.icon}
-            label={stat.label}
-            value={stat.value}
+      <div className="px-8 pb-8 flex flex-col gap-5">
+        {error && (
+          <div
+            className="rounded-md px-4 py-3 text-[13px]"
+            style={{
+              background: "var(--color-danger-soft)",
+              color: "var(--color-danger)",
+              border: "1px solid rgba(180,35,24,0.18)",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* KPI row */}
+        <div className="grid grid-cols-4 gap-3">
+          <KpiCard
+            label="Total documents"
+            value={loading ? "—" : kpi.total}
+            hint="All time"
+            icon={IconDocuments}
           />
-        ))}
-      </section>
+          <KpiCard
+            label="This week"
+            value={loading ? "—" : kpi.thisWeek}
+            hint="Created in last 7 days"
+            icon={IconCalendar}
+          />
+          <KpiCard
+            label="Completed"
+            value={loading ? "—" : kpi.completed}
+            hint="Summary ready"
+            icon={IconCheckCircle}
+            tone="success"
+          />
+          <KpiCard
+            label="Processing"
+            value={loading ? "—" : kpi.processing}
+            hint={kpi.processing ? "~2 min remaining" : "Nothing in queue"}
+            icon={IconClock}
+            tone="warn"
+          />
+        </div>
 
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-gray-700">
-          <span className="font-semibold text-gray-900">
-            {filteredDocuments.length}
-          </span>{" "}
-          {filteredDocuments.length === 1
-            ? "document in view"
-            : "documents in view"}
-        </p>
-
-        <div className="flex items-center gap-2">
-          <Field label="Date Range">
-            <Select
+        {/* Filter bar */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-[11.5px] text-fg-muted mono">
+            <span className="font-semibold text-fg">
+              {filteredDocuments.length}
+            </span>{" "}
+            {filteredDocuments.length === 1
+              ? "document in view"
+              : "documents in view"}
+          </span>
+          <div className="flex-1" />
+          <label className="flex items-center gap-2 text-[11.5px] text-fg-muted">
+            <span>Date</span>
+            <select
               value={dateFilter}
-              onChange={(event) =>
-                setDateFilter(event.target.value as DateFilter)
-              }
+              onChange={(e) => setDateFilter(e.target.value as DateFilter)}
+              className="brifo-input"
+              style={{ height: 28, width: 140, fontSize: 12, padding: "0 8px" }}
             >
-              <option value="all">All Dates</option>
-              <option value="week">Last 7 Days</option>
-              <option value="month">Last 30 Days</option>
-            </Select>
-          </Field>
+              <option value="all">All dates</option>
+              <option value="week">Last 7 days</option>
+              <option value="month">Last 30 days</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-[11.5px] text-fg-muted">
+            <span>Tag</span>
+            <select
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value)}
+              className="brifo-input"
+              style={{ height: 28, width: 130, fontSize: 12, padding: "0 8px" }}
+            >
+              <option value="all">All</option>
+              {availableTags.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-      </div>
 
-      {error && (
-        <div className="rounded-md border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700">
-          {error}
-        </div>
-      )}
-
-      {/* Document List */}
-      {loading ? (
-        <div className="space-y-3">
-          <DocumentRowSkeleton />
-          <DocumentRowSkeleton />
-          <DocumentRowSkeleton />
-          <DocumentRowSkeleton />
-        </div>
-      ) : filteredDocuments.length ? (
-        <div className="space-y-3">
-          {visibleDocuments.map((entry, index) => {
-            const tone = getDocumentTone(index);
-            return (
-              <Card
-                key={entry.id}
-                padding="none"
-                className="group flex items-center gap-4 px-4 py-3 hover:bg-gray-50/50 transition-colors cursor-pointer"
-                onClick={() => navigate(`/documents/${entry.id}`)}
+        {/* Documents grid */}
+        {loading ? (
+          <div className="grid grid-cols-3 gap-3">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <Card key={i} padding="md" className="flex flex-col gap-3">
+                <div
+                  className="h-5 w-20 rounded"
+                  style={{ background: "var(--color-subtle)" }}
+                />
+                <div
+                  className="h-4 w-full rounded"
+                  style={{ background: "var(--color-subtle)" }}
+                />
+                <div
+                  className="h-4 w-3/4 rounded"
+                  style={{ background: "var(--color-subtle)" }}
+                />
+              </Card>
+            ))}
+          </div>
+        ) : filteredDocuments.length === 0 ? (
+          <Card padding="none">
+            <div className="flex flex-col items-center text-center py-14 px-6">
+              <div
+                className="mb-4 inline-flex items-center justify-center rounded-xl"
+                style={{
+                  width: 52,
+                  height: 52,
+                  background: "var(--color-subtle)",
+                  color: "var(--color-fg-muted)",
+                }}
               >
+                <IconDocuments width={22} height={22} />
+              </div>
+              <div className="text-[15px] font-semibold text-fg">
+                No documents yet
+              </div>
+              <div className="mt-1 max-w-[420px] text-[12.5px] text-fg-muted">
+                Paste a transcript or capture a meeting to generate your first
+                document.
+              </div>
+              <div className="mt-4">
+                <DButton variant="accent" onClick={onOpenCreateDialog}>
+                  <IconClipboard width={12} height={12} />
+                  Add transcript
+                </DButton>
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            {visibleDocuments.map((entry) => {
+              const deleting = deletingId === entry.id;
+              return (
                 <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${toneIconBg[tone.tone]}`}
+                  key={entry.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(`/documents/${entry.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      navigate(`/documents/${entry.id}`);
+                    }
+                  }}
+                  className="brifo-card flex flex-col gap-3 px-4 py-4 cursor-pointer hover:border-border-strong transition-colors"
+                  style={{ transition: "border-color 120ms, background 120ms" }}
                 >
-                  <span className="material-symbols-outlined text-xl">
-                    {tone.icon}
-                  </span>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-flex items-center justify-center rounded-md flex-shrink-0"
+                      style={{
+                        width: 24,
+                        height: 24,
+                        background: "var(--color-accent-soft)",
+                        color: "var(--color-accent)",
+                      }}
+                    >
+                      <IconDocuments width={13} height={13} />
+                    </span>
+                    <Chip>{entry.tag}</Chip>
+                    <div className="flex-1" />
+                    {entry.status === "completed" ? (
+                      <Chip tone="success">Completed</Chip>
+                    ) : entry.status === "processing" ? (
+                      <Chip tone="warn">{summarizeStatus(entry.status)}</Chip>
+                    ) : (
+                      <Chip>{summarizeStatus(entry.status)}</Chip>
+                    )}
+                  </div>
 
-                <div className="min-w-0 flex-1">
-                  <h4 className="truncate text-sm font-medium text-gray-900">
-                    {entry.title}
-                  </h4>
-                </div>
-
-                <span className="shrink-0 text-xs text-gray-400">
-                  {new Date(entry.date).toLocaleDateString("en-GB")}
-                </span>
-
-                <div
-                  className="shrink-0"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    loading={deletingId === entry.id}
-                    disabled={deletingId === entry.id}
-                    onClick={() => {
-                      void onDeleteDocument(entry.id);
+                  <div
+                    className="text-[13.5px] font-medium text-fg"
+                    style={{
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                      minHeight: 38,
                     }}
                   >
-                    <span
-                      className="material-symbols-outlined text-base text-error-600"
-                      aria-hidden="true"
+                    {entry.title}
+                  </div>
+
+                  <div className="flex items-center gap-3 text-[11.5px] text-fg-muted mono">
+                    <span>{new Date(entry.date).toLocaleDateString()}</span>
+                    {entry.words != null && (
+                      <span>{entry.words.toLocaleString()} words</span>
+                    )}
+                  </div>
+
+                  <div
+                    className="flex items-center gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <DButton
+                      variant="default"
+                      size="sm"
+                      onClick={() => navigate(`/documents/${entry.id}`)}
                     >
-                      delete
-                    </span>
-                  </Button>
+                      Open
+                    </DButton>
+                    <div className="flex-1" />
+                    <button
+                      type="button"
+                      disabled={deleting}
+                      onClick={() => void onDeleteDocument(entry.id)}
+                      className="w-7 h-7 rounded-md flex items-center justify-center text-fg-subtle hover:text-danger hover:bg-subtle transition-colors cursor-pointer"
+                      title="Delete"
+                      aria-label="Delete document"
+                    >
+                      {deleting ? (
+                        <IconMoreV width={13} height={13} />
+                      ) : (
+                        <IconTrash width={13} height={13} />
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </Card>
-            );
-          })}
-        </div>
-      ) : (
-        <EmptyState
-          icon={
-            <span className="material-symbols-outlined text-4xl">
-              description
-            </span>
-          }
-          title="No documents for this filter"
-          description="Try a different date range or capture a new meeting."
-          action={{ label: "Add Transcript", onClick: onOpenCreateDialog }}
+              );
+            })}
+          </div>
+        )}
+
+        {visibleCount < filteredDocuments.length && (
+          <div
+            ref={scrollSentinelRef}
+            className="flex justify-center py-3 text-[12px] text-fg-subtle"
+          >
+            Loading more…
+          </div>
+        )}
+      </div>
+
+      {isCreateDialogOpen && (
+        <AddTranscriptDialog
+          meetingTitle={manualMeetingTitle}
+          onMeetingTitleChange={setManualMeetingTitle}
+          transcript={manualTranscript}
+          onTranscriptChange={setManualTranscript}
+          outputMode={manualOutputMode}
+          onOutputModeChange={setManualOutputMode}
+          error={manualSubmitError}
+          submitting={isSubmittingManual}
+          onClose={onCloseCreateDialog}
+          onSubmit={() => void onSubmitManualGeneration()}
         />
       )}
+    </div>
+  );
+}
 
-      {visibleCount < filteredDocuments.length && (
-        <div ref={scrollSentinelRef} className="flex justify-center py-4">
-          <span className="text-sm text-gray-400">Loading more...</span>
-        </div>
-      )}
-
-      <Dialog
-        open={isCreateDialogOpen}
-        onClose={onCloseCreateDialog}
-        title="Add Manual Transcript"
-        description="Generate a document, Jira tasks, or both from your text."
-        className="max-w-xl"
+function AddTranscriptDialog({
+  meetingTitle,
+  onMeetingTitleChange,
+  transcript,
+  onTranscriptChange,
+  outputMode,
+  onOutputModeChange,
+  error,
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  meetingTitle: string;
+  onMeetingTitleChange: (v: string) => void;
+  transcript: string;
+  onTranscriptChange: (v: string) => void;
+  outputMode: NoteOutputMode;
+  onOutputModeChange: (v: NoteOutputMode) => void;
+  error: string | null;
+  submitting: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      style={{
+        background: "rgba(20,19,14,0.45)",
+        backdropFilter: "blur(4px)",
+        animation: "fade-in 140ms ease-out",
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="brifo-card w-full"
+        style={{
+          maxWidth: 560,
+          animation: "modal-in 160ms cubic-bezier(0.2,0.8,0.2,1)",
+          boxShadow: "var(--shadow-lg)",
+        }}
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="space-y-4">
-          <Field label="Title">
-            <Input
-              type="text"
-              value={manualMeetingTitle}
-              onChange={(event) => setManualMeetingTitle(event.target.value)}
-              placeholder="Sprint planning recap"
-              disabled={isSubmittingManual}
-            />
-          </Field>
+        <div
+          className="flex items-start gap-3 px-5 pt-5 pb-4"
+          style={{ borderBottom: "1px solid var(--color-divider)" }}
+        >
+          <div
+            className="flex items-center justify-center"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: "var(--color-accent-soft)",
+              color: "var(--color-accent)",
+            }}
+          >
+            <IconClipboard width={16} height={16} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[15px] font-semibold text-fg">
+              Add manual transcript
+            </div>
+            <div className="text-[12.5px] text-fg-muted mt-0.5">
+              Generate a document, Jira tasks, or both from your text.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 rounded-md flex items-center justify-center text-fg-subtle hover:bg-subtle cursor-pointer"
+            aria-label="Close"
+          >
+            <IconX width={13} height={13} />
+          </button>
+        </div>
 
-          <Field label="Generate">
-            <Select
-              value={manualOutputMode}
-              onChange={(event) =>
-                setManualOutputMode(event.target.value as NoteOutputMode)
+        <div className="px-5 py-4 flex flex-col gap-3.5">
+          <label className="flex flex-col gap-1.5">
+            <span className="eyebrow">Title</span>
+            <input
+              className="brifo-input"
+              value={meetingTitle}
+              onChange={(e) => onMeetingTitleChange(e.target.value)}
+              placeholder="Sprint planning recap"
+              disabled={submitting}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="eyebrow">Generate</span>
+            <select
+              className="brifo-input"
+              value={outputMode}
+              onChange={(e) =>
+                onOutputModeChange(e.target.value as NoteOutputMode)
               }
-              disabled={isSubmittingManual}
+              disabled={submitting}
             >
               <option value="document">Document</option>
               <option value="tasks">Tasks (Jira tickets)</option>
               <option value="both">Document + Tasks</option>
-            </Select>
-          </Field>
+            </select>
+          </label>
 
-          <Field label="Transcript" error={manualSubmitError ?? undefined}>
-            <Textarea
-              rows={9}
-              value={manualTranscript}
-              onChange={(event) => setManualTranscript(event.target.value)}
-              placeholder="Paste transcript or minutes of meeting..."
-              disabled={isSubmittingManual}
-              error={manualSubmitError ?? undefined}
+          <label className="flex flex-col gap-1.5">
+            <span className="eyebrow">Transcript</span>
+            <textarea
+              className="brifo-input"
+              style={{ minHeight: 160 }}
+              value={transcript}
+              onChange={(e) => onTranscriptChange(e.target.value)}
+              placeholder="Paste transcript or minutes of meeting…"
+              disabled={submitting}
             />
-          </Field>
+          </label>
 
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={onCloseCreateDialog}
-              disabled={isSubmittingManual}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => void onSubmitManualGeneration()}
-              loading={isSubmittingManual}
-            >
-              <span className="material-symbols-outlined text-base">
-                auto_awesome
-              </span>
-              {isSubmittingManual ? "Generating..." : "Generate"}
-            </Button>
+          <div
+            className="flex items-start gap-2 rounded-md px-3 py-2.5 text-[11.5px] text-fg-muted"
+            style={{ background: "var(--color-subtle)" }}
+          >
+            <IconSparkles width={12} height={12} />
+            Brifo infers issue types, owners and due dates from your text.
           </div>
+
+          {error && (
+            <div
+              className="rounded-md px-3 py-2.5 text-[12px]"
+              style={{
+                background: "var(--color-danger-soft)",
+                color: "var(--color-danger)",
+                border: "1px solid rgba(180,35,24,0.18)",
+              }}
+            >
+              {error}
+            </div>
+          )}
         </div>
-      </Dialog>
-    </section>
+
+        <div
+          className="flex items-center gap-2 px-5 py-3"
+          style={{ borderTop: "1px solid var(--color-divider)" }}
+        >
+          <span className="text-[11px] text-fg-subtle mono">
+            {transcript.length.toLocaleString()} chars
+          </span>
+          <div className="flex-1" />
+          <DButton variant="default" onClick={onClose} disabled={submitting}>
+            Cancel
+          </DButton>
+          <DButton variant="accent" onClick={onSubmit} disabled={submitting}>
+            {submitting ? "Generating…" : "Generate"}
+          </DButton>
+        </div>
+      </div>
+    </div>
   );
 }

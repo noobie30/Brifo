@@ -11,6 +11,15 @@
       "port": 5174
     },
     {
+      "name": "desktop-renderer",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/pankajsankhala/Downloads/Brifo/desktop && PATH=/opt/homebrew/bin:$PATH npx vite --port 5177 --strictPort"
+      ],
+      "port": 5177
+    },
+    {
       "name": "icons",
       "runtimeExecutable": "/opt/homebrew/bin/node",
       "runtimeArgs": [

@@ -1,66 +1,86 @@
 import { useState } from "react";
-import brifoLogo from "../assets/brifo-logo-mark.png";
-
-const navLinks = [];
+import {
+  BrifoMark,
+  BtnPrimary,
+  IconApple,
+  IconMenu,
+  IconX,
+} from "../lib/design";
 
 export function Header() {
   const downloadUrl = import.meta.env.VITE_DOWNLOAD_URL || "#download";
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 md:px-12">
-        <div className="flex items-center gap-8">
-          <a
-            href="/"
-            className="flex items-center gap-2.5 text-lg font-bold tracking-tight text-gray-900"
+    <header
+      className="sticky top-0 z-50 backdrop-blur-xl"
+      style={{
+        background: "color-mix(in oklab, var(--color-canvas) 80%, transparent)",
+        borderBottom: "1px solid var(--color-border)",
+      }}
+    >
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5 md:px-10">
+        <a
+          href="/"
+          className="flex items-center gap-2.5"
+          aria-label="Brifo"
+        >
+          <BrifoMark size={26} />
+          <span
+            className="text-[14px] font-semibold tracking-[-0.2px]"
+            style={{ color: "var(--color-fg)" }}
           >
-            <img src={brifoLogo} alt="Brifo" className="h-8 w-8 rounded-lg" />
             Brifo
-          </a>
-        </div>
-        <div className="flex items-center gap-3">
+          </span>
+        </a>
+
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            className="inline-flex items-center justify-center rounded-md p-2 text-gray-600 hover:bg-gray-100 md:hidden"
+            className="inline-flex items-center justify-center rounded-md w-9 h-9 md:hidden transition-colors"
+            style={{ color: "var(--color-fg-muted)" }}
             onClick={() => setMenuOpen((prev) => !prev)}
             aria-label="Toggle menu"
             aria-expanded={menuOpen}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              {menuOpen ? (
-                <>
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </>
-              ) : (
-                <>
-                  <line x1="4" y1="6" x2="20" y2="6" />
-                  <line x1="4" y1="12" x2="20" y2="12" />
-                  <line x1="4" y1="18" x2="20" y2="18" />
-                </>
-              )}
-            </svg>
+            {menuOpen ? (
+              <IconX size={20} />
+            ) : (
+              <IconMenu size={20} />
+            )}
           </button>
-          <a
-            href={downloadUrl}
-            download
-            className="hidden rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 md:inline-block"
-          >
-            Download for Mac
-          </a>
+
+          <div className="hidden md:block">
+            <BtnPrimary
+              asAnchor
+              href={downloadUrl}
+              download
+              size="md"
+            >
+              <IconApple size={15} />
+              Download for Mac
+            </BtnPrimary>
+          </div>
         </div>
       </div>
+
+      {menuOpen && (
+        <div
+          className="md:hidden px-6 pb-3"
+          style={{ borderTop: "1px solid var(--color-divider)" }}
+        >
+          <BtnPrimary
+            asAnchor
+            href={downloadUrl}
+            download
+            size="md"
+            className="w-full mt-3"
+          >
+            <IconApple size={15} />
+            Download for Mac
+          </BtnPrimary>
+        </div>
+      )}
     </header>
   );
 }
