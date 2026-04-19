@@ -120,7 +120,7 @@ export function LoginPage() {
         />
 
         <div className="flex items-center gap-2.5 relative">
-          <BrifoMark size={28} color="var(--color-accent)" />
+          <BrifoMark size={28} />
           <span className="text-[15px] font-semibold tracking-[-0.2px]">
             Brifo
           </span>

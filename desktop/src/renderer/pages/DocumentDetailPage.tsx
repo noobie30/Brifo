@@ -5,15 +5,13 @@ import remarkGfm from "remark-gfm";
 import { getNotes } from "../lib/api";
 import { useAppStore } from "../store/app-store";
 import { NoteRecord } from "../types";
-import { Card, Chip, DButton, Eyebrow } from "../components/design";
+import { Card, Chip, DButton } from "../components/design";
 import {
   IconArrowLeft,
   IconClock,
-  IconDownload,
-  IconEdit,
-  IconShare,
   IconSparkles,
 } from "../components/icons";
+import { Skeleton } from "../components/ui/Skeleton";
 
 function resolveTitle(
   meetingId: string,
@@ -104,7 +102,39 @@ export function DocumentDetailPage() {
 
   if (loading) {
     return (
-      <div className="px-8 py-10 text-[13px] text-fg-subtle">Loading…</div>
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2 px-8 pt-5">
+          <Skeleton width={80} height={14} />
+          <span className="text-[12px] text-fg-subtle">/</span>
+          <Skeleton width={200} height={14} />
+        </div>
+
+        <div className="px-8 pt-4 pb-8 max-w-4xl mx-auto w-full">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton variant="rect" width={76} height={22} />
+            <Skeleton variant="rect" width={92} height={22} />
+            <Skeleton width={150} height={13} />
+          </div>
+
+          <Skeleton height={42} width="88%" className="mb-2" />
+          <Skeleton height={42} width="52%" />
+
+          <div className="mt-8 flex flex-col gap-2.5">
+            <Skeleton height={15} width="100%" />
+            <Skeleton height={15} width="97%" />
+            <Skeleton height={15} width="92%" />
+            <Skeleton height={15} width="95%" />
+            <Skeleton height={15} width="60%" />
+          </div>
+
+          <Skeleton height={22} width={140} className="mt-10 mb-3" />
+          <div className="pl-5 flex flex-col gap-2">
+            <Skeleton height={14} width="82%" />
+            <Skeleton height={14} width="74%" />
+            <Skeleton height={14} width="88%" />
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -128,12 +158,9 @@ export function DocumentDetailPage() {
         </span>
       </div>
 
-      <div
-        className="px-8 pt-4 pb-8 grid gap-8 max-w-6xl mx-auto w-full"
-        style={{ gridTemplateColumns: "minmax(0,1fr) 240px" }}
-      >
+      <div className="px-8 pt-4 pb-8 max-w-4xl mx-auto w-full">
         {/* Article */}
-        <article className="min-w-0">
+        <article>
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <Chip>Document</Chip>
             {note ? (
@@ -156,29 +183,8 @@ export function DocumentDetailPage() {
             {documentTitle}
           </h1>
 
-          <div
-            className="mt-4 pb-3 mb-6 flex items-center gap-2"
-            style={{ borderBottom: "1px solid var(--color-divider)" }}
-          >
-            <span className="text-[12px] text-fg-muted">
-              Auto-summarized by Brifo
-            </span>
-            <div className="flex-1" />
-            <DButton variant="ghost" size="sm">
-              <IconEdit width={12} height={12} />
-              Edit
-            </DButton>
-            <DButton variant="ghost" size="sm">
-              <IconShare width={12} height={12} />
-              Share
-            </DButton>
-            <DButton variant="ghost" size="sm">
-              <IconDownload width={12} height={12} />
-              Download
-            </DButton>
-          </div>
 
-          {summaryMarkdown && (
+{summaryMarkdown && (
             <article
               className="prose prose-sm max-w-none text-fg-2 prose-headings:text-fg prose-headings:font-semibold prose-a:text-accent"
               style={{ fontSize: 15, lineHeight: 1.75 }}
@@ -254,63 +260,6 @@ export function DocumentDetailPage() {
           )}
         </article>
 
-        {/* Sidebar */}
-        <aside
-          className="flex flex-col gap-3"
-          style={{ position: "sticky", top: 0, alignSelf: "start" }}
-        >
-          <Card padding="md">
-            <Eyebrow className="mb-2">On this page</Eyebrow>
-            <div className="flex flex-col gap-1.5 text-[12.5px] text-fg-muted">
-              {summaryMarkdown && (
-                <a
-                  href="#summary"
-                  className="hover:text-fg transition-colors"
-                >
-                  Summary
-                </a>
-              )}
-              {(note?.decisions?.length ?? 0) > 0 && (
-                <a
-                  href="#decisions"
-                  className="hover:text-fg transition-colors"
-                >
-                  Decisions
-                </a>
-              )}
-              {(note?.openQuestions?.length ?? 0) > 0 && (
-                <a
-                  href="#questions"
-                  className="hover:text-fg transition-colors"
-                >
-                  Open questions
-                </a>
-              )}
-            </div>
-          </Card>
-
-          <Card padding="md">
-            <Eyebrow className="mb-2">Linked</Eyebrow>
-            <div className="flex flex-col gap-1.5 text-[12.5px]">
-              {meeting && (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/meeting/${meeting._id}/review`)}
-                  className="text-left text-fg-2 hover:text-fg transition-colors truncate"
-                >
-                  {meeting.title || "Meeting"}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => navigate("/tasks")}
-                className="text-left text-fg-2 hover:text-fg transition-colors"
-              >
-                Related tasks
-              </button>
-            </div>
-          </Card>
-        </aside>
       </div>
     </div>
   );

@@ -22,10 +22,11 @@ export function Skeleton({
 
   return (
     <div
-      className={`animate-pulse bg-gray-200 ${variantClass} ${defaultHeight} ${className}`}
+      className={`animate-pulse ${variantClass} ${defaultHeight} ${className}`}
       style={{
         width: typeof width === "number" ? `${width}px` : width,
         height: typeof height === "number" ? `${height}px` : height,
+        background: "var(--color-border, #E6E4DE)",
       }}
     />
   );

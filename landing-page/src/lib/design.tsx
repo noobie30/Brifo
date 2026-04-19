@@ -3,104 +3,18 @@
 // from /desktop.
 
 import type { ReactNode, SVGProps } from "react";
+import brifoLogoMark from "../assets/brifo-logo-mark.png";
 
-// ————————————————————————————————————————————————————————
-// Brand mark — cream rounded tile, geometric blue "B" on the left,
-// solid dot + two radiating arcs on the right (a subtle nod to
-// "listening"). The full mark appears at sizes ≥ 32px; at smaller
-// sizes we drop the arcs and show just the B so the favicon and
-// inline icons stay legible.
-//
-// Equal padding on all four sides of the tile (4.6 units in the 24x24
-// viewbox), equal corner radii, square tile — "equal from all sides".
-// ————————————————————————————————————————————————————————
-type BrifoMarkProps = {
-  size?: number;
-  /**
-   * Surface the mark sits on.
-   * - "light" (default): cream tile + hairline border, blue glyph.
-   * - "dark": solid blue tile, white glyph — for dark backgrounds
-   *   where a cream tile would disappear.
-   */
-  tone?: "light" | "dark";
-  /** Force-show or hide the audio arcs regardless of size. */
-  variant?: "auto" | "compact" | "full";
-  /** Legacy: override tile fill. If set, wins over `tone`. */
-  color?: string;
-};
-
-export function BrifoMark({
-  size = 24,
-  tone = "light",
-  variant = "auto",
-  color,
-}: BrifoMarkProps) {
-  // Any non-default tile fill (either explicit `color` override or
-  // `tone="dark"`) triggers the inverted palette — white glyph on a
-  // filled tile — so the mark stays visible on dark / accent surfaces.
-  const isDark = tone === "dark" || !!color;
-  const tileFill =
-    color ??
-    (isDark ? "var(--color-accent)" : "var(--color-subtle, #F3F2EE)");
-  const tileStroke = isDark ? "transparent" : "var(--color-border, #E6E4DE)";
-  const tileStrokeWidth = isDark ? 0 : 0.75;
-  const glyphColor = isDark ? "#ffffff" : "var(--color-accent, #2E5BFF)";
-
-  const full = variant === "full" || (variant === "auto" && size >= 32);
-
+export function BrifoMark({ size = 24 }: { size?: number }) {
   return (
-    <svg
+    <img
+      src={brifoLogoMark}
       width={size}
       height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+      alt=""
       aria-hidden
-    >
-      <rect
-        x="0.5"
-        y="0.5"
-        width="23"
-        height="23"
-        rx="6"
-        fill={tileFill}
-        stroke={tileStroke}
-        strokeWidth={tileStrokeWidth}
-      />
-      {full ? (
-        <>
-          {/* B — scooted left to leave room for the arcs */}
-          <path
-            fill={glyphColor}
-            fillRule="evenodd"
-            clipRule="evenodd"
-            d="M4.6 6.6H9.1A2.6 2.6 0 0 1 9.1 11.8A2.8 2.8 0 0 1 9.1 17.4H4.6V6.6ZM6.6 8.5V9.9H8.9A0.7 0.7 0 0 0 8.9 8.5H6.6ZM6.6 13.5V15.5H9.1A1.0 1.0 0 0 0 9.1 13.5H6.6Z"
-          />
-          {/* solid dot + two 90° arcs, concentric at (14.5, 12) */}
-          <circle cx="14.5" cy="12" r="0.9" fill={glyphColor} />
-          <path
-            stroke={glyphColor}
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            d="M16.55 9.95A2.9 2.9 0 0 1 16.55 14.05"
-          />
-          <path
-            stroke={glyphColor}
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            d="M17.96 8.54A4.9 4.9 0 0 1 17.96 15.46"
-          />
-        </>
-      ) : (
-        // Compact — centered B, no arcs, for favicon / small inline uses.
-        <path
-          fill={glyphColor}
-          fillRule="evenodd"
-          clipRule="evenodd"
-          d="M7 6.5H12.6A2.7 2.7 0 0 1 12.6 11.9A2.8 2.8 0 0 1 12.6 17.5H7V6.5ZM9.2 8.5V10H12.1A0.75 0.75 0 0 0 12.1 8.5H9.2ZM9.2 13.4V15.7H12.4A1.15 1.15 0 0 0 12.4 13.4H9.2Z"
-        />
-      )}
-    </svg>
+      style={{ objectFit: "contain", display: "block" }}
+    />
   );
 }
 

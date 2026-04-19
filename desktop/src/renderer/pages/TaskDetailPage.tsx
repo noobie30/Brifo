@@ -16,6 +16,7 @@ import {
   IconJira,
   IconSparkles,
 } from "../components/icons";
+import { Skeleton } from "../components/ui/Skeleton";
 
 function formatDueDate(value: string | null): string {
   if (!value) return "No due date";
@@ -103,7 +104,83 @@ export function TaskDetailPage() {
 
   if (loading) {
     return (
-      <div className="px-8 py-10 text-[13px] text-fg-subtle">Loading…</div>
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2 px-8 pt-5">
+          <Skeleton width={80} height={14} />
+          <span className="text-[12px] text-fg-subtle">/</span>
+          <Skeleton width={90} height={14} />
+        </div>
+
+        <div
+          className="px-8 pt-4 pb-8 grid gap-6 max-w-6xl mx-auto w-full"
+          style={{ gridTemplateColumns: "minmax(0,1fr) 300px" }}
+        >
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-4">
+              <Skeleton variant="circle" width={20} height={20} />
+              <Skeleton variant="rect" width={64} height={22} />
+              <Skeleton width={72} height={13} />
+              <Skeleton variant="rect" width={110} height={22} />
+            </div>
+
+            <Skeleton height={30} width="85%" className="mb-2" />
+            <Skeleton height={30} width="52%" />
+
+            <div className="mt-8">
+              <Skeleton height={11} width={92} className="mb-2.5" />
+              <div className="flex flex-col gap-2">
+                <Skeleton height={14} width="100%" />
+                <Skeleton height={14} width="94%" />
+                <Skeleton height={14} width="70%" />
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <Skeleton height={11} width={140} className="mb-2.5" />
+              <div className="flex flex-col gap-2">
+                <Skeleton height={14} width="82%" />
+                <Skeleton height={14} width="78%" />
+                <Skeleton height={14} width="86%" />
+              </div>
+            </div>
+
+            <div
+              className="mt-8 pt-4 flex items-center gap-2"
+              style={{ borderTop: "1px solid var(--color-divider)" }}
+            >
+              <Skeleton variant="rect" width={180} height={32} />
+              <Skeleton variant="rect" width={130} height={32} />
+              <Skeleton variant="rect" width={130} height={32} />
+            </div>
+          </div>
+
+          <aside className="flex flex-col gap-3">
+            <Card padding="md">
+              <Skeleton height={11} width={80} className="mb-3" />
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between py-2"
+                  style={{
+                    borderBottom:
+                      i < 5 ? "1px solid var(--color-divider)" : "none",
+                  }}
+                >
+                  <Skeleton height={12} width={72} />
+                  <Skeleton height={12} width={90} />
+                </div>
+              ))}
+            </Card>
+
+            <Card padding="md">
+              <Skeleton height={11} width={90} className="mb-3" />
+              <Skeleton height={28} width={70} className="mb-2" />
+              <Skeleton height={12} width="90%" className="mb-3" />
+              <Skeleton variant="rect" height={6} width="100%" />
+            </Card>
+          </aside>
+        </div>
+      </div>
     );
   }
 
@@ -127,13 +204,6 @@ export function TaskDetailPage() {
       </div>
     );
   }
-
-  const acceptanceLines = task.acceptanceCriteria
-    ? task.acceptanceCriteria
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-    : [];
 
   return (
     <div className="flex flex-col">
@@ -199,48 +269,8 @@ export function TaskDetailPage() {
             </p>
           </section>
 
-          {acceptanceLines.length > 0 && (
-            <section className="mt-6">
-              <Eyebrow className="mb-2">Acceptance criteria</Eyebrow>
-              <ul className="flex flex-col gap-1.5">
-                {acceptanceLines.map((line, index) => (
-                  <li
-                    key={index}
-                    className="flex items-start gap-2 text-[13.5px] text-fg-2 leading-[1.6]"
-                  >
-                    <span
-                      className="inline-flex items-center justify-center rounded flex-shrink-0 mt-[3px]"
-                      style={{
-                        width: 16,
-                        height: 16,
-                        border: "1px solid var(--color-border-strong)",
-                        background: "var(--color-surface)",
-                      }}
-                    />
-                    <span>{line}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
 
-          <section className="mt-6">
-            <Eyebrow className="mb-2">Transcript context</Eyebrow>
-            <div
-              className="rounded-md px-3.5 py-3 text-[13px] italic text-fg-2 leading-[1.65]"
-              style={{
-                background: "var(--color-surface)",
-                borderLeft: "3px solid var(--color-accent)",
-                border: "1px solid var(--color-border)",
-              }}
-            >
-              {meeting?.title
-                ? `Linked to "${meeting.title}". Open the source document for the original discussion.`
-                : "Linked meeting context not available."}
-            </div>
-          </section>
-
-          <div
+<div
             className="mt-7 pt-4 flex items-center gap-2 flex-wrap"
             style={{ borderTop: "1px solid var(--color-divider)" }}
           >

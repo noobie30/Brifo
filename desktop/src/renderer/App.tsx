@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import brifoLogoMark from "./assets/brifo-logo-mark.png";
 import { ProtectedLayout } from "./components/ProtectedLayout";
 import { DocumentDetailPage } from "./pages/DocumentDetailPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
@@ -24,27 +25,64 @@ export function App() {
 
   if (isBootstrapping) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 gap-3">
-        <svg
-          className="animate-spin h-6 w-6 text-accent-500"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-          />
-        </svg>
-        <p className="text-sm text-gray-500">Loading Brifo...</p>
+      <div
+        className="flex flex-col items-center justify-center min-h-screen"
+        style={{ background: "var(--color-subtle, #F3F2EE)" }}
+      >
+        <div className="flex flex-col items-center gap-5">
+          <div style={{ animation: "brifo-breathe 2.4s ease-in-out infinite" }}>
+            <img
+              src={brifoLogoMark}
+              width={80}
+              height={80}
+              alt=""
+              aria-hidden
+              style={{ display: "block" }}
+            />
+          </div>
+
+          <div className="flex flex-col items-center gap-1">
+            <span
+              className="text-[17px] font-semibold tracking-[-0.3px]"
+              style={{ color: "var(--color-fg, #16150F)" }}
+            >
+              Brifo
+            </span>
+            <span
+              className="text-[12px]"
+              style={{ color: "var(--color-fg-subtle, #9A9282)" }}
+            >
+              AI Meeting Notes
+            </span>
+          </div>
+
+          <div className="flex gap-[6px]" style={{ marginTop: 4 }}>
+            {[0, 180, 360].map((delay) => (
+              <span
+                key={delay}
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "var(--color-accent, #2E4FD9)",
+                  animation: "brifo-dot 1.5s ease-in-out infinite",
+                  animationDelay: `${delay}ms`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <style>{`
+          @keyframes brifo-breathe {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.75; transform: scale(0.93); }
+          }
+          @keyframes brifo-dot {
+            0%, 100% { opacity: 0.2; transform: translateY(0); }
+            50% { opacity: 1; transform: translateY(-4px); }
+          }
+        `}</style>
       </div>
     );
   }

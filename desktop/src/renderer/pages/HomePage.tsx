@@ -370,20 +370,6 @@ export function HomePage() {
                 ))}
               </div>
             )}
-            <div
-              className="px-4 py-2.5 text-[11.5px] text-fg-muted flex items-center"
-              style={{ borderTop: "1px solid var(--color-divider)" }}
-            >
-              <span>Brifo auto-joins meetings you confirm.</span>
-              <div className="flex-1" />
-              <button
-                type="button"
-                onClick={() => navigate("/settings")}
-                className="text-fg-muted hover:text-fg transition-colors cursor-pointer"
-              >
-                Configure
-              </button>
-            </div>
           </Card>
 
           {/* Right column */}

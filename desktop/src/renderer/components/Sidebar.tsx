@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAppStore } from "../store/app-store";
 import { stopAutoCapture } from "../lib/auto-capture";
@@ -28,28 +27,6 @@ export function Sidebar() {
   const navigate = useNavigate();
   const user = useAppStore((state) => state.user);
   const signOut = useAppStore((state) => state.signOut);
-  const tasks = useAppStore((state) => state.tasks);
-  const upcomingEvents = useAppStore((state) => state.upcomingEvents);
-  const meetings = useAppStore((state) => state.meetings);
-
-  const pendingTasksCount = tasks.filter((t) => !t.approved).length;
-  const todaysMeetingCount = useMemo(() => {
-    const now = new Date();
-    const todayStart = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    ).getTime();
-    const tomorrowStart = todayStart + 24 * 60 * 60 * 1000;
-    const isToday = (iso?: string | null) => {
-      if (!iso) return false;
-      const t = new Date(iso).getTime();
-      return t >= todayStart && t < tomorrowStart;
-    };
-    const fromEvents = upcomingEvents.filter((e) => isToday(e.startTime)).length;
-    if (fromEvents > 0) return fromEvents;
-    return meetings.filter((m) => isToday(m.startTime)).length;
-  }, [upcomingEvents, meetings]);
 
   function onSignOut() {
     void stopAutoCapture("manual");
@@ -93,12 +70,6 @@ export function Sidebar() {
       <nav className="flex flex-col gap-[1px]" aria-label="Primary">
         {NAV.map((item) => {
           const Icon = item.icon;
-          const badge =
-            item.to === "/tasks" && pendingTasksCount > 0
-              ? pendingTasksCount
-              : item.to === "/meetings" && todaysMeetingCount > 0
-                ? todaysMeetingCount
-                : null;
           return (
             <NavLink
               key={item.to}
@@ -127,17 +98,6 @@ export function Sidebar() {
                   )}
                   <Icon width={16} height={16} />
                   <span className="flex-1">{item.label}</span>
-                  {badge != null && (
-                    <span
-                      className="min-w-[18px] h-[18px] px-1.5 rounded mono text-[10.5px] flex items-center justify-center"
-                      style={{
-                        background: "var(--color-muted)",
-                        color: "var(--color-fg-muted)",
-                      }}
-                    >
-                      {badge}
-                    </span>
-                  )}
                 </>
               )}
             </NavLink>
