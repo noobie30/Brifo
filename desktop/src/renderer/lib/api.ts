@@ -217,40 +217,6 @@ export async function getTranscriptHistory(limit = 20) {
   return data as TranscriptHistoryRecord[];
 }
 
-export async function appendAutoTranscriptChunk(payload: {
-  meetingId: string;
-  chunkStartMs: number;
-  sequence: number;
-  blob: Blob;
-}) {
-  const formData = new FormData();
-  formData.append(
-    "chunkStartMs",
-    String(Math.max(0, Math.round(payload.chunkStartMs))),
-  );
-  formData.append(
-    "sequence",
-    String(Math.max(0, Math.round(payload.sequence))),
-  );
-  formData.append(
-    "audio",
-    payload.blob,
-    `brifo-chunk-${payload.sequence}.webm`,
-  );
-
-  const { data } = await api.post(
-    `/meetings/${encodeURIComponent(payload.meetingId)}/transcript/auto/chunk`,
-    formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    },
-  );
-
-  return data as { accepted: boolean };
-}
-
 export async function startTranscriptStream(meetingId: string) {
   const { data } = await api.post(
     `/meetings/${encodeMeetingId(meetingId)}/transcript/stream/start`,

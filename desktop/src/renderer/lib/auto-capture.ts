@@ -1,5 +1,4 @@
 import {
-  appendAutoTranscriptChunk,
   sendStreamAudio,
   startMeeting,
   startTranscriptStream,
@@ -54,7 +53,6 @@ interface StartCaptureInput {
   calendarEventId?: string;
 }
 
-const CHUNK_MS = 2 * 60 * 1000;
 const SILENCE_STOP_MS = 3 * 60 * 1000;
 const SILENCE_SAMPLE_MS = 2000;
 const MAX_DURATION_MS = 10 * 60 * 60 * 1000;
@@ -62,15 +60,12 @@ const CALENDAR_AUTO_WINDOW_MS = 90 * 1000;
 const STREAM_INTERVAL_MS = 250; // Send PCM audio every 250ms
 
 let activeState: AutoCaptureState | null = null;
-let mediaRecorder: MediaRecorder | null = null;
 let micStream: MediaStream | null = null;
 let audioContext: AudioContext | null = null;
 let analyserNode: AnalyserNode | null = null;
 let analyserTimer: number | null = null;
 let endTimer: number | null = null;
 let maxTimer: number | null = null;
-let nextChunkStartMs = 0;
-let chunkSequence = 0;
 let lastAudioDetectedAt = 0;
 let stopInProgress = false;
 let streamingActive = false;
@@ -90,7 +85,6 @@ const MAX_STREAM_FAILURES = 120;
 const STREAM_RECONNECT_COOLDOWN_MS = 5000;
 let lastReconnectAttemptAt = 0;
 
-const uploadQueue = new Set<Promise<void>>();
 const listeners = new Set<(state: AutoCaptureState | null) => void>();
 const noticeListeners = new Set<
   (notice: MeetingDetectedNotice | null) => void
@@ -162,16 +156,6 @@ function emitNotice() {
   for (const listener of noticeListeners) {
     listener(lastDetectedNotice);
   }
-}
-
-function makeMediaRecorder(stream: MediaStream): MediaRecorder {
-  if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
-    return new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
-  }
-  if (MediaRecorder.isTypeSupported("audio/webm")) {
-    return new MediaRecorder(stream, { mimeType: "audio/webm" });
-  }
-  return new MediaRecorder(stream);
 }
 
 function stopAllTracks(stream: MediaStream | null) {
@@ -273,13 +257,6 @@ async function ensureMicrophonePermission(): Promise<void> {
   }
 }
 
-async function flushUploads() {
-  if (!uploadQueue.size) {
-    return;
-  }
-  await Promise.allSettled(Array.from(uploadQueue));
-}
-
 function scheduleAutoStops(endTime?: string | null) {
   const now = Date.now();
 
@@ -367,59 +344,6 @@ async function getMixedAudioStreams() {
   return destination.stream.getAudioTracks().length
     ? destination.stream
     : micStream;
-}
-
-const MAX_UPLOAD_RETRIES = 2;
-const UPLOAD_RETRY_DELAY_MS = 3000;
-
-async function uploadChunkWithRetry(
-  blob: Blob,
-  meetingId: string,
-  chunkStartMs: number,
-  sequence: number,
-): Promise<void> {
-  for (let attempt = 0; attempt <= MAX_UPLOAD_RETRIES; attempt += 1) {
-    try {
-      await appendAutoTranscriptChunk({
-        meetingId,
-        chunkStartMs,
-        sequence,
-        blob,
-      });
-      return;
-    } catch (error) {
-      if (attempt < MAX_UPLOAD_RETRIES) {
-        console.warn(
-          `[brifo][auto-capture] Chunk ${sequence} upload failed (attempt ${attempt + 1}/${MAX_UPLOAD_RETRIES + 1}), retrying...`,
-          error,
-        );
-        await new Promise((r) => setTimeout(r, UPLOAD_RETRY_DELAY_MS));
-      } else {
-        console.error(
-          `[brifo][auto-capture] Chunk ${sequence} upload failed after ${MAX_UPLOAD_RETRIES + 1} attempts.`,
-          error,
-        );
-      }
-    }
-  }
-}
-
-async function uploadChunk(
-  blob: Blob,
-  meetingId: string,
-  chunkStartMs: number,
-  sequence: number,
-) {
-  const uploadPromise = uploadChunkWithRetry(
-    blob,
-    meetingId,
-    chunkStartMs,
-    sequence,
-  ).finally(() => {
-    uploadQueue.delete(uploadPromise);
-  });
-
-  uploadQueue.add(uploadPromise);
 }
 
 export function getAutoCaptureState() {
@@ -527,41 +451,11 @@ export async function startAutoCapture(input: StartCaptureInput) {
     const stream = await getMixedAudioStreams();
     stopInProgress = false;
 
-    // Try real-time Deepgram streaming first; fall back to chunk-based uploads
-    let useStreaming = false;
-    try {
-      await startTranscriptStream(activeState.meetingId);
-      useStreaming = true;
-    } catch {
-      console.warn(
-        "[brifo][auto-capture] Real-time streaming unavailable, falling back to chunk uploads.",
-      );
-    }
-
-    if (useStreaming) {
-      streamingActive = true;
-      consecutiveStreamFailures = 0;
-      totalBytesStreamed = 0;
-      setupPcmStreaming(stream);
-    } else {
-      mediaRecorder = makeMediaRecorder(stream);
-      nextChunkStartMs = 0;
-      chunkSequence = 0;
-
-      mediaRecorder.ondataavailable = (event) => {
-        const blob = event.data;
-        if (!blob || blob.size === 0 || !activeState) {
-          return;
-        }
-        const chunkStart = nextChunkStartMs;
-        const sequence = chunkSequence;
-        chunkSequence += 1;
-        nextChunkStartMs += CHUNK_MS;
-        void uploadChunk(blob, activeState.meetingId, chunkStart, sequence);
-      };
-
-      mediaRecorder.start(CHUNK_MS);
-    }
+    await startTranscriptStream(activeState.meetingId);
+    streamingActive = true;
+    consecutiveStreamFailures = 0;
+    totalBytesStreamed = 0;
+    setupPcmStreaming(stream);
 
     setupSilenceDetection(stream);
     scheduleAutoStops(input.endTime);
@@ -744,27 +638,7 @@ export async function stopAutoCapture(reason: StopReason = "manual") {
       streamingActive = false;
     }
 
-    // Step 4: stop the MediaRecorder (if chunk upload path)
-    try {
-      if (mediaRecorder && mediaRecorder.state !== "inactive") {
-        await new Promise<void>((resolve) => {
-          const recorder = mediaRecorder;
-          if (!recorder) {
-            resolve();
-            return;
-          }
-          recorder.onstop = () => resolve();
-          recorder.stop();
-        });
-      }
-    } catch (error) {
-      console.warn(
-        "[brifo][auto-capture] mediaRecorder.stop failed:",
-        error instanceof Error ? error.message : error,
-      );
-    }
-
-    // Step 5: clear silence/auto-stop timers
+    // Step 4: clear silence/auto-stop timers
     try {
       clearTimers();
     } catch {
@@ -789,14 +663,7 @@ export async function stopAutoCapture(reason: StopReason = "manual") {
       }
     }
 
-    // Step 8: flush any pending chunk uploads (chunk path only)
-    try {
-      await flushUploads();
-    } catch {
-      // ignore
-    }
-
-    // Step 9: tell the backend the meeting ended (triggers speaker resolution)
+    // Step 8: tell the backend the meeting ended (triggers speaker resolution)
     try {
       await stopMeeting(stoppedMeetingId);
     } catch (error) {
@@ -808,7 +675,6 @@ export async function stopAutoCapture(reason: StopReason = "manual") {
   } finally {
     // ALWAYS null state so we never end up with zombie references, even if
     // one of the cleanup steps above threw.
-    mediaRecorder = null;
     micStream = null;
     audioContext = null;
     analyserNode = null;

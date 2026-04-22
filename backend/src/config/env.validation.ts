@@ -13,7 +13,6 @@ export const envValidationSchema = Joi.object({
     then: Joi.string().min(16).required(),
     otherwise: Joi.string().min(8).default("brifo-dev-secret"),
   }),
-  ASSEMBLYAI_API_KEY: Joi.string().allow("").optional(),
   DEEPGRAM_API_KEY: Joi.string().allow("").optional(),
   OPENAI_API_KEY: Joi.string().allow("").optional(),
   OPENAI_MODEL_NOTES: Joi.string().allow("").optional(),

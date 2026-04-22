@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -47,35 +46,6 @@ export class TranscriptsController {
     @Param("meetingId") meetingId: string,
   ) {
     return this.transcriptsService.getSegments(user.userId, meetingId);
-  }
-
-  @Post("auto/chunk")
-  @UseInterceptors(
-    FileInterceptor("audio", { limits: { fileSize: 10 * 1024 * 1024 } }),
-  )
-  async appendAutoChunk(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param("meetingId") meetingId: string,
-    @UploadedFile() file: { buffer: Buffer; mimetype?: string } | undefined,
-    @Body() payload: { chunkStartMs?: string; sequence?: string },
-  ) {
-    if (!file?.buffer?.length) {
-      throw new BadRequestException("Audio chunk is required.");
-    }
-
-    const chunkStartMs = Number.parseInt(payload.chunkStartMs ?? "0", 10);
-    const sequence = Number.parseInt(payload.sequence ?? "0", 10);
-
-    await this.transcriptsService.enqueueAutoTranscriptionChunk({
-      userId: user.userId,
-      meetingId: meetingId.trim(),
-      chunkStartMs: Number.isFinite(chunkStartMs) ? chunkStartMs : 0,
-      sequence: Number.isFinite(sequence) ? sequence : undefined,
-      audioBuffer: file.buffer,
-      mimeType: file.mimetype,
-    });
-
-    return { accepted: true };
   }
 
   @Post("stream/start")
