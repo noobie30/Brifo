@@ -6,9 +6,11 @@ interface Window {
     checkPermissions: () => Promise<{
       microphone: string;
       camera: string;
+      screen: string;
       isDev: boolean;
     }>;
     requestMicrophoneAccess: () => Promise<boolean>;
+    getScreenCaptureSourceId: () => Promise<string | null>;
     openMicrophoneSettings: () => Promise<void>;
     startGoogleAuth: (payload: {
       clientId: string;

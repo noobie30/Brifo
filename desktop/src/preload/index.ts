@@ -10,6 +10,7 @@ const electronAPI = {
     ipcRenderer.invoke("permissions:check") as Promise<{
       microphone: string;
       camera: string;
+      screen: string;
       isDev: boolean;
     }>,
   startGoogleAuth: (payload: { clientId: string; clientSecret?: string }) =>
@@ -46,6 +47,10 @@ const electronAPI = {
     }),
   requestMicrophoneAccess: () =>
     ipcRenderer.invoke("permissions:request-microphone") as Promise<boolean>,
+  getScreenCaptureSourceId: () =>
+    ipcRenderer.invoke("permissions:get-screen-source") as Promise<
+      string | null
+    >,
   openMicrophoneSettings: () =>
     ipcRenderer.invoke("permissions:open-microphone-settings") as Promise<void>,
   openExternal: (url: string) =>

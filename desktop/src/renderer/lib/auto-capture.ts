@@ -311,6 +311,27 @@ function setupSilenceDetection(stream: MediaStream) {
   }, SILENCE_SAMPLE_MS);
 }
 
+async function captureSystemAudio(
+  sourceId: string,
+): Promise<MediaStream | null> {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        // @ts-expect-error — Electron-specific chromeMediaSource constraint
+        mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId },
+      },
+      video: {
+        // @ts-expect-error — video must be specified alongside audio for desktopCapturer streams
+        mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId },
+      },
+    });
+    stream.getVideoTracks().forEach((t) => t.stop());
+    return stream;
+  } catch {
+    return null;
+  }
+}
+
 async function getMixedAudioStreams() {
   await ensureMicrophonePermission();
 
@@ -330,16 +351,33 @@ async function getMixedAudioStreams() {
     throw buildCaptureStartError(new Error("No microphone track available."));
   }
 
-  // Route the raw mic stream through an AudioContext so downstream code
-  // (analyser for silence detection, PCM streaming) has a consistent
-  // MediaStream reference to work with. We don't mix in any other
-  // source — Brifo captures the microphone only, by design.
+  // Route mic through an AudioContext so silence detection and PCM streaming
+  // share one consistent MediaStream. System audio is mixed in when enabled.
   audioContext = new AudioContext();
   const destination = audioContext.createMediaStreamDestination();
   const micSource = audioContext.createMediaStreamSource(
     new MediaStream(micStream.getAudioTracks()),
   );
   micSource.connect(destination);
+
+  // Mix in system audio (others' voices) if the user enabled it.
+  const systemAudioEnabled =
+    localStorage.getItem("brifo_system_audio_enabled") === "true";
+  if (systemAudioEnabled) {
+    try {
+      const sourceId = await window.electronAPI.getScreenCaptureSourceId();
+      if (sourceId) {
+        const systemStream = await captureSystemAudio(sourceId);
+        if (systemStream?.getAudioTracks().length) {
+          const systemSource =
+            audioContext.createMediaStreamSource(systemStream);
+          systemSource.connect(destination);
+        }
+      }
+    } catch {
+      // System audio is optional — mic-only is fine if this fails.
+    }
+  }
 
   return destination.stream.getAudioTracks().length
     ? destination.stream

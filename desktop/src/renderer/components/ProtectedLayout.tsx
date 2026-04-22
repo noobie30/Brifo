@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, Outlet, useNavigate } from "react-router-dom";
+import { AudioPermissionsModal } from "./AudioPermissionsModal";
 import { BackgroundFinalizer } from "./BackgroundFinalizer";
 import { Sidebar } from "./Sidebar";
 import { MeetingDetectedBanner } from "./MeetingDetectedBanner";
@@ -15,6 +16,9 @@ export function ProtectedLayout() {
   const navigate = useNavigate();
   const user = useAppStore((state) => state.user);
   const upcomingEvents = useAppStore((state) => state.upcomingEvents);
+  const [showPermissions, setShowPermissions] = useState(
+    () => !localStorage.getItem("brifo_permissions_setup"),
+  );
 
   useEffect(() => {
     if (!user) {
@@ -83,6 +87,10 @@ export function ProtectedLayout() {
 
   return (
     <>
+      <AudioPermissionsModal
+        open={showPermissions}
+        onDone={() => setShowPermissions(false)}
+      />
       <BackgroundFinalizer />
       <MeetingDetectedBanner />
       <div

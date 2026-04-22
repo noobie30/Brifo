@@ -2,6 +2,7 @@ import {
   Notification,
   app,
   BrowserWindow,
+  desktopCapturer,
   ipcMain,
   nativeImage,
   session,
@@ -1790,21 +1791,10 @@ app.whenReady().then(() => {
     });
   }
 
-  // Silent, best-effort cleanup of stale macOS TCC entries. Brifo is
-  // now microphone-only — it no longer requests Screen Recording or
-  // Camera, but earlier builds (and dev runs under the Electron
-  // binary) can leave orphaned rows in System Settings that look
-  // confusing (duplicate "Brifo" entries with terminal icons).
-  // We drop those categories unconditionally on every production
-  // launch. We do NOT reset Microphone here — that would revoke the
-  // user's current grant and prompt them on every launch.
-  // tccutil returns non-zero when no entry exists; we ignore it.
+  // Silent, best-effort cleanup of stale macOS TCC entries for Camera
+  // and Electron dev-binary leftovers. ScreenCapture is intentionally
+  // preserved — Brifo now uses it for system audio capture.
   if (process.platform === "darwin" && !isDev) {
-    void execFileAsync("tccutil", [
-      "reset",
-      "ScreenCapture",
-      "com.brifo.desktop",
-    ]).catch(() => undefined);
     void execFileAsync("tccutil", [
       "reset",
       "Camera",
@@ -1825,12 +1815,22 @@ app.whenReady().then(() => {
   ipcMain.handle("permissions:check", () => ({
     microphone: systemPreferences.getMediaAccessStatus("microphone"),
     camera: systemPreferences.getMediaAccessStatus("camera"),
+    screen: systemPreferences.getMediaAccessStatus("screen"),
     isDev,
   }));
 
   ipcMain.handle("permissions:request-microphone", async () => {
     if (process.platform !== "darwin") return false;
     return systemPreferences.askForMediaAccess("microphone");
+  });
+
+  ipcMain.handle("permissions:get-screen-source", async () => {
+    try {
+      const sources = await desktopCapturer.getSources({ types: ["screen"] });
+      return sources[0]?.id ?? null;
+    } catch {
+      return null;
+    }
   });
 
   ipcMain.handle("permissions:open-microphone-settings", async () => {
