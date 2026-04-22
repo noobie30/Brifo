@@ -1,0 +1,198 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  width: 1200px;
+  height: 627px;
+  overflow: hidden;
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  position: relative;
+}
+
+/* ── Colours ── */
+:root {
+  --cream: #F3F2EE;
+  --blue: #2E4FD9;
+  --ink: #16150f;
+  --ink-2: #3a3930;
+  --muted: #6f6d63;
+  --subtle: #9a988e;
+  --border: #e6e4de;
+  --surface: #ffffff;
+  --success: #0e7b4e;
+  --success-bg: #d1fae5;
+  --danger: #b42318;
+  --danger-bg: #fee2e2;
+  --warn: #b35c00;
+  --warn-bg: #fef3c7;
+}
+
+/* ── Typography ── */
+.serif { font-family: 'Instrument Serif', Georgia, serif; }
+.label {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--blue);
+}
+.slide-num {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--blue);
+}
+
+/* ── Wordmark ── */
+.wordmark {
+  position: absolute;
+  bottom: 32px;
+  left: 56px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.wordmark img { width: 18px; height: 18px; object-fit: contain; }
+
+.wordmark-white {
+  position: absolute;
+  bottom: 32px;
+  left: 56px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.7);
+}
+.wordmark-white img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  filter: brightness(10);
+  opacity: 0.8;
+}
+
+/* ── Carousel arrow ── */
+.arrow {
+  position: absolute;
+  right: 40px;
+  bottom: 32px;
+  color: var(--subtle);
+  font-size: 22px;
+}
+
+/* ── Mac chrome window ── */
+.mac-window {
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.mac-bar {
+  background: #f5f4f1;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.mac-bar .dots { display: flex; gap: 6px; }
+.mac-bar .dot { width: 11px; height: 11px; border-radius: 50%; }
+.mac-bar .dot.red   { background: #ff5f57; }
+.mac-bar .dot.yellow{ background: #febc2e; }
+.mac-bar .dot.green { background: #28c840; }
+.mac-bar .title {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--subtle);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mac-bar .title img { width: 13px; height: 13px; object-fit: contain; }
+.mac-body { padding: 16px; }
+
+/* ── Meeting rows ── */
+.meeting-row {
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.meeting-row.default { background: var(--cream); }
+.meeting-row.live    { background: var(--blue); }
+.meeting-row.dim     { background: var(--cream); opacity: 0.7; }
+.meeting-row .name   { font-size: 12px; font-weight: 600; color: var(--ink); }
+.meeting-row.live .name { color: white; }
+.meeting-row .time   { font-size: 10px; color: var(--subtle); margin-top: 2px; }
+.meeting-row.live .time { color: rgba(255,255,255,0.65); }
+.badge {
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.badge.captured { background: var(--success-bg); color: var(--success); }
+.badge.live     { background: rgba(255,255,255,0.2); color: white; }
+.badge.scheduled{ color: var(--subtle); }
+
+/* ── Task rows ── */
+.task-row {
+  background: var(--cream);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.task-row .task-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.task-row .task-meta { font-size: 10px; color: var(--subtle); margin-top: 2px; }
+.priority {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.priority.high { background: var(--danger-bg);  color: var(--danger); }
+.priority.med  { background: var(--warn-bg);    color: var(--warn); }
+
+/* ── Approve button ── */
+.approve-btn {
+  background: var(--blue);
+  color: white;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* ── CTA pill ── */
+.cta-pill {
+  background: white;
+  color: var(--blue);
+  border-radius: 100px;
+  padding: 14px 36px;
+  font-size: 16px;
+  font-weight: 700;
+  display: inline-block;
+  margin-top: 16px;
+}
+
+/* ── Ghost watermark logo ── */
+.ghost-logo {
+  position: absolute;
+  opacity: 0.07;
+  pointer-events: none;
+}

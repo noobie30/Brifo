@@ -23,7 +23,7 @@ interface BannerState {
 
 function describeStopReason(reason: StopReason): string | null {
   if (reason === "stream_failed") {
-    return "Audio streaming stopped responding. Check your Deepgram API key and network connection.";
+    return "Audio streaming kept failing. Check your internet connection and try recording again.";
   }
   if (reason === "silence") {
     return "No audio detected for several minutes — capture was stopped automatically.";
@@ -126,7 +126,7 @@ export function BackgroundFinalizer() {
                 title: title || "Notes not generated",
                 message:
                   reasonMessage ??
-                  "No transcript was captured. Check that your audio was being streamed (Deepgram key, network, mic permission) and try again.",
+                  "No transcript was captured. Check Microphone permission (and Screen Recording for others' voices) in System Settings, then try recording again.",
                 meetingId,
               },
               BANNER_ERROR_AUTO_DISMISS_MS,

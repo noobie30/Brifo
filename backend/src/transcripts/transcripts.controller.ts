@@ -73,12 +73,19 @@ export class TranscriptsController {
     }
     // sendAudio auto-recovers if the Deepgram session was lost to a
     // Vercel instance recycle, so this no longer throws 410 Gone.
-    const sent = await this.deepgramStreamingService.sendAudio(
+    const result = await this.deepgramStreamingService.sendAudio(
       user.userId,
       meetingId.trim(),
       file.buffer,
     );
-    return { accepted: sent };
+    if (result.ok) {
+      return { accepted: true };
+    }
+    return {
+      accepted: false,
+      reason: result.reason,
+      ...(result.message ? { message: result.message } : {}),
+    };
   }
 
   @Post("stream/stop")

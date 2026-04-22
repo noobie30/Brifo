@@ -406,10 +406,14 @@ function describeError(error: unknown): string {
   return String(error).slice(0, 200);
 }
 
-// Permission-check state. Cleared on app quit; we only nag the user once per
-// session so we don't spam notifications.
-let permissionCheckCompleted = false;
-let permissionNotificationShown = false;
+// Automation permission probe state. We periodically re-check so a user who
+// grants permission mid-session gets unblocked without restarting, and a user
+// who keeps denying gets a gentle re-nag instead of a silent failure.
+let lastAutomationCheckAt = 0;
+let lastAutomationNotifiedAt = 0;
+let automationPermissionDenied = false;
+const AUTOMATION_RECHECK_MS = 15 * 60 * 1000;
+const AUTOMATION_RENAG_MS = 30 * 60 * 1000;
 
 function sendOpenMeetingsIntent(payload?: {
   sourceApp?: string;
@@ -789,83 +793,123 @@ async function detectMeetingSignal(
 ): Promise<DetectionOutcome> {
   const errors: string[] = [];
 
+  // Run the four browser-AppleScript probes in parallel — they're all
+  // independent, each has its own timeout, and on slow systems running them
+  // sequentially can stack up to ~9 s of latency per tick. Priority order
+  // is preserved when we check the settled results below.
+  const [
+    chromeActive,
+    safariActive,
+    chromeAllTabs,
+    safariAllTabs,
+    processListResult,
+  ] = await Promise.all([
+    queryBrowserActiveTabUrl("Google Chrome").then(
+      (value) => ({ kind: "ok" as const, value }),
+      (error) => ({ kind: "err" as const, error }),
+    ),
+    queryBrowserActiveTabUrl("Safari").then(
+      (value) => ({ kind: "ok" as const, value }),
+      (error) => ({ kind: "err" as const, error }),
+    ),
+    queryBrowserMeetingTabUrls("Google Chrome").then(
+      (value) => ({ kind: "ok" as const, value }),
+      (error) => ({ kind: "err" as const, error }),
+    ),
+    queryBrowserMeetingTabUrls("Safari").then(
+      (value) => ({ kind: "ok" as const, value }),
+      (error) => ({ kind: "err" as const, error }),
+    ),
+    getRunningProcessList().then(
+      (value) => ({ kind: "ok" as const, value }),
+      (error) => ({ kind: "err" as const, error }),
+    ),
+  ]);
+
   // 1. Fast path: check active tab in Chrome
-  try {
-    const chromeUrl = await queryBrowserActiveTabUrl("Google Chrome");
-    const chromeSignal = extractMeetingSignalFromUrl(chromeUrl, "Chrome");
+  if (chromeActive.kind === "ok") {
+    const chromeSignal = extractMeetingSignalFromUrl(
+      chromeActive.value,
+      "Chrome",
+    );
     detectorDebug(
-      `chrome-active-tab → ${chromeUrl ? `url=${chromeUrl.slice(0, 80)} match=${Boolean(chromeSignal)}` : "empty"}`,
+      `chrome-active-tab → ${chromeActive.value ? `url=${chromeActive.value.slice(0, 80)} match=${Boolean(chromeSignal)}` : "empty"}`,
     );
     if (chromeSignal) {
       return { kind: "signal", signal: chromeSignal };
     }
-  } catch (error) {
-    const reason = `chrome-active-tab: ${describeError(error)}`;
+  } else {
+    const reason = `chrome-active-tab: ${describeError(chromeActive.error)}`;
     errors.push(reason);
     detectorDebug(reason);
-    maybeLogDetectorError(error);
+    maybeLogDetectorError(chromeActive.error);
   }
 
   // 2. Fast path: check active tab in Safari
-  try {
-    const safariUrl = await queryBrowserActiveTabUrl("Safari");
-    const safariSignal = extractMeetingSignalFromUrl(safariUrl, "Safari");
+  if (safariActive.kind === "ok") {
+    const safariSignal = extractMeetingSignalFromUrl(
+      safariActive.value,
+      "Safari",
+    );
     detectorDebug(
-      `safari-active-tab → ${safariUrl ? `url=${safariUrl.slice(0, 80)} match=${Boolean(safariSignal)}` : "empty"}`,
+      `safari-active-tab → ${safariActive.value ? `url=${safariActive.value.slice(0, 80)} match=${Boolean(safariSignal)}` : "empty"}`,
     );
     if (safariSignal) {
       return { kind: "signal", signal: safariSignal };
     }
-  } catch (error) {
-    const reason = `safari-active-tab: ${describeError(error)}`;
+  } else {
+    const reason = `safari-active-tab: ${describeError(safariActive.error)}`;
     errors.push(reason);
     detectorDebug(reason);
-    maybeLogDetectorError(error);
+    maybeLogDetectorError(safariActive.error);
   }
 
   // 3. Scan ALL tabs in Chrome for meeting URLs (catches background tabs)
-  try {
-    const chromeUrls = await queryBrowserMeetingTabUrls("Google Chrome");
-    detectorDebug(`chrome-all-tabs → ${chromeUrls.length} matching url(s)`);
-    for (const url of chromeUrls) {
+  if (chromeAllTabs.kind === "ok") {
+    detectorDebug(
+      `chrome-all-tabs → ${chromeAllTabs.value.length} matching url(s)`,
+    );
+    for (const url of chromeAllTabs.value) {
       const signal = extractMeetingSignalFromUrl(url, "Chrome");
       if (signal) {
         return { kind: "signal", signal };
       }
     }
-  } catch (error) {
-    const reason = `chrome-all-tabs: ${describeError(error)}`;
+  } else {
+    const reason = `chrome-all-tabs: ${describeError(chromeAllTabs.error)}`;
     errors.push(reason);
     detectorDebug(reason);
-    maybeLogDetectorError(error);
+    maybeLogDetectorError(chromeAllTabs.error);
   }
 
   // 4. Scan ALL tabs in Safari for meeting URLs
-  try {
-    const safariUrls = await queryBrowserMeetingTabUrls("Safari");
-    detectorDebug(`safari-all-tabs → ${safariUrls.length} matching url(s)`);
-    for (const url of safariUrls) {
+  if (safariAllTabs.kind === "ok") {
+    detectorDebug(
+      `safari-all-tabs → ${safariAllTabs.value.length} matching url(s)`,
+    );
+    for (const url of safariAllTabs.value) {
       const signal = extractMeetingSignalFromUrl(url, "Safari");
       if (signal) {
         return { kind: "signal", signal };
       }
     }
-  } catch (error) {
-    const reason = `safari-all-tabs: ${describeError(error)}`;
+  } else {
+    const reason = `safari-all-tabs: ${describeError(safariAllTabs.error)}`;
     errors.push(reason);
     detectorDebug(reason);
-    maybeLogDetectorError(error);
+    maybeLogDetectorError(safariAllTabs.error);
   }
 
-  // 5. Get process list once (shared by desktop app check + mic check)
+  // 5. Process list (kicked off in parallel above, shared by desktop app
+  //    check + mic check).
   let processList: string | undefined;
-  try {
-    processList = await getRunningProcessList();
-  } catch (error) {
-    const reason = `process-list: ${describeError(error)}`;
+  if (processListResult.kind === "ok") {
+    processList = processListResult.value;
+  } else {
+    const reason = `process-list: ${describeError(processListResult.error)}`;
     errors.push(reason);
     detectorDebug(reason);
-    maybeLogDetectorError(error);
+    maybeLogDetectorError(processListResult.error);
   }
 
   // 6. Check for desktop meeting apps (Zoom/Teams/Webex) by process name —
@@ -1121,16 +1165,20 @@ function startMeetingDetector() {
   }, MEETING_DETECT_INTERVAL_MS);
 }
 
-// Verify macOS Automation permission once per session. If osascript can run
-// System Events (a permission-free query) but cannot query Google Chrome
-// (which requires Automation access for the host app), Brifo's meeting
-// detection silently fails — every capture ends with a spurious "Meeting
-// ended" notification after the grace period. Surface this to the user so
+// Verify macOS Automation permission. If osascript can run System Events (a
+// permission-free query) but cannot query Google Chrome (which requires
+// Automation access for the host app), Brifo's meeting detection silently
+// fails — auto-start notifications stop working. Surface this to the user so
 // they can enable the toggle in System Settings.
-async function verifyAutomationPermissionOnce() {
-  if (permissionCheckCompleted) return;
-  permissionCheckCompleted = true;
+//
+// Called on startup, periodically (AUTOMATION_RECHECK_MS), and whenever
+// capture starts. Re-nags if denial persists past AUTOMATION_RENAG_MS so a
+// user who dismisses the first notification isn't left with a silent failure.
+async function verifyAutomationPermission() {
   if (process.platform !== "darwin") return;
+  const now = Date.now();
+  if (now - lastAutomationCheckAt < AUTOMATION_RECHECK_MS) return;
+  lastAutomationCheckAt = now;
 
   // Step 1: baseline — does osascript work at all?
   try {
@@ -1188,13 +1236,23 @@ async function verifyAutomationPermissionOnce() {
     }
   }
 
-  if (!chromePermissionDenied || permissionNotificationShown) return;
-  permissionNotificationShown = true;
+  // Reset nag timer if permission was denied before but is now granted.
+  if (automationPermissionDenied && !chromePermissionDenied) {
+    console.log(
+      "[brifo][permissions] Chrome Automation access recovered — clearing nag.",
+    );
+    lastAutomationNotifiedAt = 0;
+  }
+  automationPermissionDenied = chromePermissionDenied;
+
+  if (!chromePermissionDenied) return;
+  if (now - lastAutomationNotifiedAt < AUTOMATION_RENAG_MS) return;
+  lastAutomationNotifiedAt = now;
 
   if (Notification.isSupported()) {
     const notification = new Notification({
       title: "Brifo needs Automation access to Google Chrome",
-      body: "Open System Settings → Privacy & Security → Automation, and enable the Brifo → Google Chrome toggle. Without it, Brifo cannot detect meetings and capture will stop after about 30 seconds.",
+      body: "Open System Settings → Privacy & Security → Automation, and enable the Brifo → Google Chrome toggle. Without it, Brifo cannot detect meetings and capture may stop after about 30 seconds.",
       silent: false,
     });
     notification.on("click", () => {
@@ -1840,6 +1898,13 @@ app.whenReady().then(() => {
     );
   });
 
+  ipcMain.handle("permissions:open-screen-recording-settings", async () => {
+    if (process.platform !== "darwin") return;
+    await shell.openExternal(
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+    );
+  });
+
   ipcMain.handle(
     "auth:google:start",
     (_event, payload: GoogleDesktopAuthRequest) =>
@@ -1865,11 +1930,18 @@ app.whenReady().then(() => {
         | { active?: boolean; expectsMeetingSignal?: boolean }
         | undefined,
     ) => {
+      const wasActive = captureActive;
       captureActive = !!payload?.active;
       captureExpectsMeetingSignal = !!payload?.expectsMeetingSignal;
       meetingGoneSinceMs = 0;
       if (captureActive) {
         resetMeetingDetectionCandidate();
+        // Re-check automation permission at capture start — the user is
+        // actively about to rely on meeting detection, so this is the right
+        // moment to surface a denial they may have missed earlier.
+        if (!wasActive) {
+          void verifyAutomationPermission();
+        }
       }
     },
   );
@@ -1906,7 +1978,7 @@ app.whenReady().then(() => {
   // Delayed slightly so the main window has a chance to load first (notification
   // appears on top of a visible app rather than pre-launch).
   setTimeout(() => {
-    void verifyAutomationPermissionOnce();
+    void verifyAutomationPermission();
   }, 5000);
 
   app.on("activate", () => {

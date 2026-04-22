@@ -53,6 +53,8 @@ const electronAPI = {
     >,
   openMicrophoneSettings: () =>
     ipcRenderer.invoke("permissions:open-microphone-settings") as Promise<void>,
+  openScreenRecordingSettings: () =>
+    ipcRenderer.invoke("permissions:open-screen-recording-settings") as Promise<void>,
   openExternal: (url: string) =>
     ipcRenderer.invoke("external:open", url) as Promise<void>,
   showMeetingDetectedNotification: (payload: {

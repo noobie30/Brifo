@@ -14,6 +14,7 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.string().min(8).default("brifo-dev-secret"),
   }),
   DEEPGRAM_API_KEY: Joi.string().allow("").optional(),
+  DEEPGRAM_CONNECT_TIMEOUT_MS: Joi.number().integer().min(1000).optional(),
   OPENAI_API_KEY: Joi.string().allow("").optional(),
   OPENAI_MODEL_NOTES: Joi.string().allow("").optional(),
   MASTRA_MODEL: Joi.string().allow("").optional(),

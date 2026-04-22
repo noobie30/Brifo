@@ -23,13 +23,20 @@ export async function waitForTranscriptStability(
 ): Promise<TranscriptSegmentRecord[]> {
   // For long meetings (multi-hour) the backend may still be draining the
   // Deepgram close handshake and bulk-inserting segments when capture
-  // stops. 60 attempts × 3s = 3 minutes gives enough headroom.
+  // stops. 60 attempts × 3s = 3 minutes gives enough headroom once we
+  // know the meeting produced any transcript at all.
+  //
+  // If no segments appear in the first EMPTY_BAIL_ATTEMPTS polls (~60s),
+  // the capture probably recorded nothing usable — bail early so the UI
+  // can show an actionable error instead of a 3-minute silent wait.
   const maxAttempts = 60;
   const waitMs = 3000;
+  const EMPTY_BAIL_ATTEMPTS = 20;
 
   let lastCount = -1;
   let stableTicks = 0;
   let lastTranscript: TranscriptSegmentRecord[] = [];
+  let everSawSegments = false;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     let segments: TranscriptSegmentRecord[] = [];
@@ -45,6 +52,7 @@ export async function waitForTranscriptStability(
     const count = segments.length;
     if (count > 0) {
       lastTranscript = segments;
+      everSawSegments = true;
     }
 
     if (count > 0) {
@@ -57,6 +65,13 @@ export async function waitForTranscriptStability(
       if (stableTicks >= 2) {
         return segments;
       }
+    }
+
+    if (!everSawSegments && attempt + 1 >= EMPTY_BAIL_ATTEMPTS) {
+      console.warn(
+        `[finalize-capture] No transcript segments after ${EMPTY_BAIL_ATTEMPTS} polls — bailing out of stability wait.`,
+      );
+      return lastTranscript;
     }
 
     lastCount = count;

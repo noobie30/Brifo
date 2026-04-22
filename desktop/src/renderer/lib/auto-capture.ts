@@ -15,6 +15,14 @@ export type StopReason =
   | "replaced"
   | "stream_failed";
 
+// Whether the second audio source (other participants, via macOS screen-audio
+// tap) is currently mixed into the PCM stream sent to Deepgram.
+//   "disabled"    — user opted out, or capture hasn't started yet
+//   "unavailable" — enabled but we couldn't get the stream (permission denied,
+//                   no screen source, or getUserMedia rejected)
+//   "active"      — enabled and the stream is being mixed in
+export type SystemAudioStatus = "disabled" | "unavailable" | "active";
+
 export interface AutoCaptureStopEvent {
   meetingId: string;
   title: string;
@@ -33,6 +41,7 @@ export interface AutoCaptureState {
   // main-process meeting detector must NOT fire "meeting-ended" for these,
   // since there is no meeting to end.
   expectsMeetingSignal: boolean;
+  systemAudioStatus: SystemAudioStatus;
 }
 
 export interface MeetingDetectedNotice {
@@ -55,7 +64,10 @@ interface StartCaptureInput {
 
 const SILENCE_STOP_MS = 3 * 60 * 1000;
 const SILENCE_SAMPLE_MS = 2000;
-const MAX_DURATION_MS = 10 * 60 * 60 * 1000;
+// Hard ceiling for a single capture. 4 hours catches the "user forgot to
+// stop" case while still being generous for long workshops. Meetings that
+// legitimately run longer can restart capture manually.
+const MAX_DURATION_MS = 4 * 60 * 60 * 1000;
 const CALENDAR_AUTO_WINDOW_MS = 90 * 1000;
 const STREAM_INTERVAL_MS = 250; // Send PCM audio every 250ms
 
@@ -83,7 +95,13 @@ const MAX_STREAM_FAILURES = 120;
 // streaming session from the client side (avoid stampeding during a spike
 // of failures).
 const STREAM_RECONNECT_COOLDOWN_MS = 5000;
+// Cap consecutive reconnect attempts. With a 5 s cooldown this bounds
+// retries to ~15 s for a permanently broken stream (e.g. invalid auth or
+// network outage) instead of retrying forever. Successful audio send
+// resets the counter.
+const MAX_RECONNECT_ATTEMPTS = 3;
 let lastReconnectAttemptAt = 0;
+let consecutiveReconnectFailures = 0;
 
 const listeners = new Set<(state: AutoCaptureState | null) => void>();
 const noticeListeners = new Set<
@@ -285,6 +303,9 @@ function setupSilenceDetection(stream: MediaStream) {
   analyserNode.fftSize = 2048;
   source.connect(analyserNode);
   lastAudioDetectedAt = Date.now();
+  let everSawAnySignal = false;
+  const startedAt = Date.now();
+  const MIC_SIGNAL_GRACE_MS = 5000;
 
   analyserTimer = window.setInterval(() => {
     if (!analyserNode) {
@@ -300,9 +321,28 @@ function setupSilenceDetection(stream: MediaStream) {
       squareSum += normalized * normalized;
     }
     const rms = Math.sqrt(squareSum / data.length);
+    if (rms > 0) {
+      everSawAnySignal = true;
+    }
     if (rms > 0.015) {
       lastAudioDetectedAt = Date.now();
       return;
+    }
+
+    // Early dead-mic check: 5 s after start, if we haven't observed *any*
+    // non-zero RMS (not just below the speech threshold), the input device
+    // is producing pure silence — likely a muted, disconnected, or dummy
+    // device. Warn loudly so the user can investigate before the 3-minute
+    // silence timeout fires.
+    const elapsed = Date.now() - startedAt;
+    if (
+      !everSawAnySignal &&
+      elapsed >= MIC_SIGNAL_GRACE_MS &&
+      elapsed < MIC_SIGNAL_GRACE_MS + SILENCE_SAMPLE_MS
+    ) {
+      console.warn(
+        "[brifo][auto-capture] No audio signal from microphone after 5s — input device may be muted, disconnected, or dummy.",
+      );
     }
 
     if (Date.now() - lastAudioDetectedAt > SILENCE_STOP_MS) {
@@ -327,12 +367,29 @@ async function captureSystemAudio(
     });
     stream.getVideoTracks().forEach((t) => t.stop());
     return stream;
-  } catch {
+  } catch (error) {
+    console.error(
+      "[brifo][auto-capture] captureSystemAudio failed:",
+      error instanceof Error ? error.message : error,
+    );
     return null;
   }
 }
 
-async function getMixedAudioStreams() {
+// Read the user's system-audio preference. Default ON when unset so first-run
+// captures include others' voices by default; Screen Recording permission
+// still gates the actual capture, and if denied we fall back to mic-only.
+function isSystemAudioEnabled(): boolean {
+  const preference = localStorage.getItem("brifo_system_audio_enabled");
+  return preference === null ? true : preference === "true";
+}
+
+interface MixedAudioResult {
+  stream: MediaStream;
+  systemAudioStatus: SystemAudioStatus;
+}
+
+async function getMixedAudioStreams(): Promise<MixedAudioResult> {
   await ensureMicrophonePermission();
 
   try {
@@ -361,27 +418,41 @@ async function getMixedAudioStreams() {
   micSource.connect(destination);
 
   // Mix in system audio (others' voices) if the user enabled it.
-  const systemAudioEnabled =
-    localStorage.getItem("brifo_system_audio_enabled") === "true";
-  if (systemAudioEnabled) {
+  let systemAudioStatus: SystemAudioStatus = "disabled";
+  if (isSystemAudioEnabled()) {
+    // Assume unavailable unless we successfully connect a track below.
+    systemAudioStatus = "unavailable";
     try {
       const sourceId = await window.electronAPI.getScreenCaptureSourceId();
-      if (sourceId) {
+      if (!sourceId) {
+        console.warn(
+          "[brifo][auto-capture] System audio unavailable: no screen capture source (Screen Recording permission denied?).",
+        );
+      } else {
         const systemStream = await captureSystemAudio(sourceId);
         if (systemStream?.getAudioTracks().length) {
           const systemSource =
             audioContext.createMediaStreamSource(systemStream);
           systemSource.connect(destination);
+          systemAudioStatus = "active";
+        } else {
+          console.warn(
+            "[brifo][auto-capture] System audio unavailable: getUserMedia returned no audio track.",
+          );
         }
       }
-    } catch {
-      // System audio is optional — mic-only is fine if this fails.
+    } catch (error) {
+      console.error(
+        "[brifo][auto-capture] System audio setup threw:",
+        error instanceof Error ? error.message : error,
+      );
     }
   }
 
-  return destination.stream.getAudioTracks().length
+  const stream = destination.stream.getAudioTracks().length
     ? destination.stream
     : micStream;
+  return { stream, systemAudioStatus };
 }
 
 export function getAutoCaptureState() {
@@ -457,6 +528,7 @@ export async function startAutoCapture(input: StartCaptureInput) {
     startedAt: Date.now(),
     status: "starting",
     expectsMeetingSignal,
+    systemAudioStatus: "disabled",
   };
   lastDetectedNotice = {
     meetingId: input.meetingId,
@@ -486,12 +558,14 @@ export async function startAutoCapture(input: StartCaptureInput) {
   }
 
   try {
-    const stream = await getMixedAudioStreams();
+    const { stream, systemAudioStatus } = await getMixedAudioStreams();
     stopInProgress = false;
 
     await startTranscriptStream(activeState.meetingId);
     streamingActive = true;
     consecutiveStreamFailures = 0;
+    consecutiveReconnectFailures = 0;
+    lastReconnectAttemptAt = 0;
     totalBytesStreamed = 0;
     setupPcmStreaming(stream);
 
@@ -500,6 +574,7 @@ export async function startAutoCapture(input: StartCaptureInput) {
     activeState = {
       ...activeState,
       status: "recording",
+      systemAudioStatus,
     };
     emitState();
     return activeState;
@@ -560,6 +635,7 @@ function setupPcmStreaming(stream: MediaStream) {
     void sendStreamAudio(currentMeetingId, blob)
       .then(() => {
         consecutiveStreamFailures = 0;
+        consecutiveReconnectFailures = 0;
         totalBytesStreamed += merged.byteLength;
       })
       .catch((error) => {
@@ -570,18 +646,20 @@ function setupPcmStreaming(stream: MediaStream) {
         );
 
         // Proactively try to re-open the streaming session on the backend.
-        // Throttled so a burst of failures produces at most one reconnect
-        // attempt per cooldown window.
+        // Throttled by cooldown and capped at MAX_RECONNECT_ATTEMPTS so a
+        // permanently broken backend (bad auth, network outage) fails fast
+        // instead of retrying forever.
         const now = Date.now();
         if (
           activeState &&
           activeState.status === "recording" &&
-          now - lastReconnectAttemptAt >= STREAM_RECONNECT_COOLDOWN_MS
+          now - lastReconnectAttemptAt >= STREAM_RECONNECT_COOLDOWN_MS &&
+          consecutiveReconnectFailures < MAX_RECONNECT_ATTEMPTS
         ) {
           lastReconnectAttemptAt = now;
           const reconnectMeetingId = currentMeetingId;
           console.log(
-            "[brifo][auto-capture] Attempting to re-open streaming session...",
+            `[brifo][auto-capture] Attempting to re-open streaming session (${consecutiveReconnectFailures + 1}/${MAX_RECONNECT_ATTEMPTS})...`,
           );
           void startTranscriptStream(reconnectMeetingId)
             .then(() => {
@@ -589,10 +667,12 @@ function setupPcmStreaming(stream: MediaStream) {
                 "[brifo][auto-capture] Stream reopened successfully.",
               );
               consecutiveStreamFailures = 0;
+              consecutiveReconnectFailures = 0;
             })
             .catch((reopenError) => {
+              consecutiveReconnectFailures += 1;
               console.warn(
-                "[brifo][auto-capture] Stream reopen failed:",
+                `[brifo][auto-capture] Stream reopen failed (${consecutiveReconnectFailures}/${MAX_RECONNECT_ATTEMPTS}):`,
                 reopenError instanceof Error
                   ? reopenError.message
                   : reopenError,
@@ -600,13 +680,18 @@ function setupPcmStreaming(stream: MediaStream) {
             });
         }
 
+        const reconnectsExhausted =
+          consecutiveReconnectFailures >= MAX_RECONNECT_ATTEMPTS;
         if (
-          consecutiveStreamFailures >= MAX_STREAM_FAILURES &&
+          (consecutiveStreamFailures >= MAX_STREAM_FAILURES ||
+            reconnectsExhausted) &&
           activeState &&
           activeState.status === "recording"
         ) {
           console.error(
-            "[brifo][auto-capture] Stream broken after repeated failures — stopping capture.",
+            reconnectsExhausted
+              ? `[brifo][auto-capture] Reconnect attempts exhausted (${MAX_RECONNECT_ATTEMPTS}) — stopping capture.`
+              : "[brifo][auto-capture] Stream broken after repeated failures — stopping capture.",
           );
           void stopAutoCapture("stream_failed");
         }
@@ -717,6 +802,8 @@ export async function stopAutoCapture(reason: StopReason = "manual") {
     audioContext = null;
     analyserNode = null;
     consecutiveStreamFailures = 0;
+    consecutiveReconnectFailures = 0;
+    lastReconnectAttemptAt = 0;
     totalBytesStreamed = 0;
 
     activeState = null;

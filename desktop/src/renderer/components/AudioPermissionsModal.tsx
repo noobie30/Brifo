@@ -41,6 +41,8 @@ export function AudioPermissionsModal({ open, onDone }: Props) {
         localStorage.setItem("brifo_system_audio_enabled", "true");
       } else {
         setSysStatus("denied");
+        // Don't persist the denial — the user might grant Screen Recording
+        // later in System Settings, and we want to re-try at meeting start.
       }
     } catch {
       setSysStatus("denied");
@@ -48,6 +50,12 @@ export function AudioPermissionsModal({ open, onDone }: Props) {
   }
 
   function handleContinue() {
+    // System audio defaults ON unless the user explicitly opted out. If the
+    // flag has never been set, mark it enabled so the capture pipeline tries
+    // Screen Recording at meeting start (triggering the macOS prompt).
+    if (localStorage.getItem("brifo_system_audio_enabled") === null) {
+      localStorage.setItem("brifo_system_audio_enabled", "true");
+    }
     localStorage.setItem("brifo_permissions_setup", "true");
     onDone();
   }
@@ -64,8 +72,10 @@ export function AudioPermissionsModal({ open, onDone }: Props) {
             Allow Brifo to transcribe your meetings
           </h2>
           <p className="text-sm text-fg-muted">
-            Brifo transcribes meetings using your computer's audio. No bots join
-            your meeting.
+            Brifo transcribes meetings using your computer&rsquo;s audio. Grant{" "}
+            <strong>Microphone</strong> to capture your voice and{" "}
+            <strong>Screen Recording</strong> to capture other participants
+            (works with earphones). No bots join your meeting.
           </p>
         </div>
 

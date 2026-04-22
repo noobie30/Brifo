@@ -44,11 +44,20 @@ interface StreamingSession {
   timeOffsetMs: number;
 }
 
+export type SendAudioResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "reopen_failed" | "session_not_open" | "send_failed";
+      message?: string;
+    };
+
 @Injectable()
 export class DeepgramStreamingService {
   private readonly logger = new Logger(DeepgramStreamingService.name);
   private readonly activeSessions = new Map<string, StreamingSession>();
   private readonly apiKey: string;
+  private readonly connectTimeoutMs: number;
 
   constructor(
     @InjectModel(TranscriptSegment.name)
@@ -59,10 +68,47 @@ export class DeepgramStreamingService {
   ) {
     this.apiKey =
       this.configService.get<string>("DEEPGRAM_API_KEY")?.trim() ?? "";
+    const rawTimeout = this.configService.get<string | number>(
+      "DEEPGRAM_CONNECT_TIMEOUT_MS",
+    );
+    const parsedTimeout =
+      typeof rawTimeout === "number"
+        ? rawTimeout
+        : Number.parseInt(String(rawTimeout ?? ""), 10);
+    this.connectTimeoutMs =
+      Number.isFinite(parsedTimeout) && parsedTimeout > 0
+        ? parsedTimeout
+        : 10_000;
   }
 
   isConfigured(): boolean {
     return this.apiKey.length > 0;
+  }
+
+  // Retry a Mongo write with exponential backoff. Used for transcript inserts
+  // so a transient DB blip (replica set election, brief network hiccup)
+  // doesn't silently drop segments.
+  private async retryWrite<T>(
+    operation: () => Promise<T>,
+    label: string,
+    maxAttempts = 3,
+  ): Promise<T | null> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        if (attempt < maxAttempts) {
+          const delayMs = 100 * 2 ** (attempt - 1);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+    }
+    this.logger.error(
+      `${label} failed after ${maxAttempts} attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+    );
+    return null;
   }
 
   async startSession(
@@ -138,7 +184,11 @@ export class DeepgramStreamingService {
     });
 
     ws.on("message", (raw: Buffer) => {
-      void this.handleMessage(session, raw);
+      this.handleMessage(session, raw).catch((error) => {
+        this.logger.error(
+          `handleMessage rejected for ${meetingId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
     });
 
     ws.on("error", (error) => {
@@ -155,8 +205,13 @@ export class DeepgramStreamingService {
     // Wait for connection to open
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(
-        () => reject(new Error("Deepgram connection timeout")),
-        10_000,
+        () =>
+          reject(
+            new Error(
+              `Deepgram connection timeout after ${this.connectTimeoutMs}ms`,
+            ),
+          ),
+        this.connectTimeoutMs,
       );
       ws.once("open", () => {
         clearTimeout(timeout);
@@ -202,25 +257,25 @@ export class DeepgramStreamingService {
     const { meetingId, userId, timeOffsetMs } = session;
 
     if (!words.length) {
-      try {
-        await this.transcriptModel.create({
-          meetingId,
-          userId,
-          speakerLabel: "Speaker A",
-          speakerRole: "unknown",
-          startMs: Math.round((data.start ?? 0) * 1000) + timeOffsetMs,
-          endMs:
-            Math.round(((data.start ?? 0) + (data.duration ?? 0)) * 1000) +
-            timeOffsetMs,
-          text: transcript,
-          confidence: best.confidence ?? undefined,
-          captureSource: "auto",
-        });
+      const inserted = await this.retryWrite(
+        () =>
+          this.transcriptModel.create({
+            meetingId,
+            userId,
+            speakerLabel: "Speaker A",
+            speakerRole: "unknown",
+            startMs: Math.round((data.start ?? 0) * 1000) + timeOffsetMs,
+            endMs:
+              Math.round(((data.start ?? 0) + (data.duration ?? 0)) * 1000) +
+              timeOffsetMs,
+            text: transcript,
+            confidence: best.confidence ?? undefined,
+            captureSource: "auto",
+          }),
+        `insert non-diarized segment for ${meetingId}`,
+      );
+      if (inserted) {
         session.segmentCount += 1;
-      } catch (error) {
-        this.logger.error(
-          `Failed to insert segment: ${error instanceof Error ? error.message : String(error)}`,
-        );
       }
       return;
     }
@@ -275,25 +330,25 @@ export class DeepgramStreamingService {
     }
 
     if (segments.length) {
-      try {
-        await this.transcriptModel.insertMany(
-          segments.map((seg) => ({
-            meetingId,
-            userId,
-            speakerLabel: seg.speaker,
-            speakerRole: "unknown" as const,
-            startMs: seg.startMs,
-            endMs: seg.endMs,
-            text: seg.text,
-            confidence: seg.confidence,
-            captureSource: "auto" as const,
-          })),
-        );
+      const inserted = await this.retryWrite(
+        () =>
+          this.transcriptModel.insertMany(
+            segments.map((seg) => ({
+              meetingId,
+              userId,
+              speakerLabel: seg.speaker,
+              speakerRole: "unknown" as const,
+              startMs: seg.startMs,
+              endMs: seg.endMs,
+              text: seg.text,
+              confidence: seg.confidence,
+              captureSource: "auto" as const,
+            })),
+          ),
+        `insertMany diarized segments for ${meetingId}`,
+      );
+      if (inserted) {
         session.segmentCount += segments.length;
-      } catch (error) {
-        this.logger.error(
-          `Failed to insert segments: ${error instanceof Error ? error.message : String(error)}`,
-        );
       }
     }
   }
@@ -302,7 +357,7 @@ export class DeepgramStreamingService {
     userId: string,
     meetingId: string,
     audio: Buffer,
-  ): Promise<boolean> {
+  ): Promise<SendAudioResult> {
     const sessionId = `${userId}:${meetingId}`;
     let session = this.activeSessions.get(sessionId);
 
@@ -322,19 +377,27 @@ export class DeepgramStreamingService {
       try {
         await this.startSession(userId, meetingId);
       } catch (error) {
+        const message =
+          error instanceof Error ? error.message : String(error);
         this.logger.error(
-          `Failed to re-open Deepgram session for ${meetingId}: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to re-open Deepgram session for ${meetingId}: ${message}`,
         );
-        return false;
+        return { ok: false, reason: "reopen_failed", message };
       }
       session = this.activeSessions.get(sessionId);
       if (!session || session.ws.readyState !== WebSocket.OPEN) {
-        return false;
+        return { ok: false, reason: "session_not_open" };
       }
     }
 
-    session.ws.send(audio);
-    return true;
+    try {
+      session.ws.send(audio);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`ws.send threw for ${meetingId}: ${message}`);
+      return { ok: false, reason: "send_failed", message };
+    }
+    return { ok: true };
   }
 
   async stopSession(userId: string, meetingId: string): Promise<void> {

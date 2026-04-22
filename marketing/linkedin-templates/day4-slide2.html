@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  width: 1200px; height: 627px; overflow: hidden;
+  background: #F3F2EE;
+  font-family: 'Geist', system-ui, sans-serif;
+  display: flex; align-items: center;
+  padding: 60px 80px; gap: 80px; position: relative;
+}
+.left { flex: 0 0 340px; display: flex; flex-direction: column; gap: 20px; }
+.slide-num { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #2E4FD9; }
+.headline { font-family: 'Instrument Serif', Georgia, serif; font-size: 44px; color: #16150f; line-height: 1.2; }
+.sub { font-size: 16px; color: #6f6d63; line-height: 1.6; }
+.right { flex: 1; }
+.mac-window { background: white; border-radius: 14px; border: 1px solid #e6e4de; box-shadow: 0 6px 32px rgba(0,0,0,0.08); overflow: hidden; }
+.mac-bar { background: #f5f4f1; padding: 12px 18px; display: flex; align-items: center; gap: 7px; border-bottom: 1px solid #e6e4de; }
+.dot { width: 12px; height: 12px; border-radius: 50%; }
+.mac-title { margin-left: auto; font-size: 12px; color: #9a988e; }
+.mac-body { padding: 20px; }
+.section-label { font-size: 13px; font-weight: 700; color: #16150f; margin-bottom: 14px; }
+.task-row { background: #f3f2ee; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.task-name { font-size: 13px; font-weight: 600; color: #16150f; }
+.task-meta { font-size: 11px; color: #9a988e; margin-top: 3px; }
+.priority { font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 4px; }
+.high { background: #fee2e2; color: #b42318; }
+.med  { background: #fef3c7; color: #b35c00; }
+.wordmark { position: absolute; bottom: 36px; left: 80px; display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #16150f; }
+.wordmark img { width: 20px; height: 20px; }
+.arrow { position: absolute; right: 56px; bottom: 36px; color: #9a988e; font-size: 24px; }
+</style>
+</head>
+<body>
+  <div class="left">
+    <div class="slide-num">JIRA PUSH · 02/06</div>
+    <div class="headline">Every action item surfaces automatically.</div>
+    <div class="sub">Brifo listens for promises, tasks, and decisions — and drafts each one after the call.</div>
+  </div>
+  <div class="right">
+    <div class="mac-window">
+      <div class="mac-bar">
+        <div class="dot" style="background:#ff5f57;"></div>
+        <div class="dot" style="background:#febc2e;"></div>
+        <div class="dot" style="background:#28c840;"></div>
+        <div class="mac-title">Tasks · Sprint Planning</div>
+      </div>
+      <div class="mac-body">
+        <div class="section-label">Action items drafted</div>
+        <div class="task-row">
+          <div><div class="task-name">Ship auth refactor</div><div class="task-meta">Aarav · Engineering</div></div>
+          <span class="priority high">High</span>
+        </div>
+        <div class="task-row">
+          <div><div class="task-name">Update API docs</div><div class="task-meta">Priya · Docs</div></div>
+          <span class="priority med">Med</span>
+        </div>
+        <div class="task-row" style="margin-bottom:0;">
+          <div><div class="task-name">Design new onboarding flow</div><div class="task-meta">Rin · Design</div></div>
+          <span class="priority med">Med</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="wordmark"><img src="{{LOGO}}"> Brifo</div>
+  <div class="arrow">→</div>
+</body>
+</html>

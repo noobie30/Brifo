@@ -4,6 +4,7 @@ import { AudioPermissionsModal } from "./AudioPermissionsModal";
 import { BackgroundFinalizer } from "./BackgroundFinalizer";
 import { Sidebar } from "./Sidebar";
 import { MeetingDetectedBanner } from "./MeetingDetectedBanner";
+import { SystemAudioWarningBanner } from "./SystemAudioWarningBanner";
 import { useAppStore } from "../store/app-store";
 import {
   autoStartCaptureForCalendarEvent,
@@ -92,6 +93,7 @@ export function ProtectedLayout() {
         onDone={() => setShowPermissions(false)}
       />
       <BackgroundFinalizer />
+      <SystemAudioWarningBanner />
       <MeetingDetectedBanner />
       <div
         className="flex h-screen overflow-hidden"

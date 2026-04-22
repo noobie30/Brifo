@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  width: 1200px; height: 627px; overflow: hidden;
+  background: #F3F2EE;
+  font-family: 'Geist', system-ui, sans-serif;
+  display: flex; align-items: center;
+  padding: 72px 96px; gap: 80px; position: relative;
+}
+.left { flex: 1; display: flex; flex-direction: column; gap: 0; }
+.label { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #2E4FD9; margin-bottom: 16px; }
+.accent-bar { width: 40px; height: 4px; background: #2E4FD9; border-radius: 2px; margin-bottom: 20px; }
+.headline { font-family: 'Instrument Serif', Georgia, serif; font-size: 48px; color: #16150f; line-height: 1.15; margin-bottom: 20px; }
+.body { font-size: 16px; color: #6f6d63; line-height: 1.7; max-width: 480px; }
+.right { flex: 0 0 320px; text-align: right; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 8px; }
+.big-stat { font-family: 'Instrument Serif', Georgia, serif; font-size: 160px; font-weight: 700; color: #2E4FD9; line-height: 1; }
+.stat-label { font-size: 15px; color: #9a988e; line-height: 1.5; text-align: right; }
+.ghost { opacity: 0.08; margin-top: 20px; }
+.wordmark { position: absolute; bottom: 36px; left: 96px; display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #16150f; }
+.wordmark img { width: 20px; height: 20px; }
+</style>
+</head>
+<body>
+  <div class="left">
+    <div class="label">BUILD IN PUBLIC</div>
+    <div class="accent-bar"></div>
+    <div class="headline">We tracked every hour<br/>we spent on meetings.</div>
+    <div class="body">The biggest surprise wasn't the meetings themselves — it was the 12 hours a week spent translating them into written deliverables. Typing up decisions. Copying action items into Jira. Chasing people for context.<br/><br/>We built Brifo to delete that category of work.</div>
+  </div>
+  <div class="right">
+    <div class="big-stat">12</div>
+    <div class="stat-label">hrs/week in meeting admin<br/>avg. knowledge worker</div>
+    <img src="{{LOGO}}" class="ghost" style="width:80px;height:80px;object-fit:contain;">
+  </div>
+  <div class="wordmark"><img src="{{LOGO}}"> Brifo</div>
+</body>
+</html>

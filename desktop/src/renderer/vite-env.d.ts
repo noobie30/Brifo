@@ -12,6 +12,7 @@ interface Window {
     requestMicrophoneAccess: () => Promise<boolean>;
     getScreenCaptureSourceId: () => Promise<string | null>;
     openMicrophoneSettings: () => Promise<void>;
+    openScreenRecordingSettings: () => Promise<void>;
     startGoogleAuth: (payload: {
       clientId: string;
       clientSecret?: string;

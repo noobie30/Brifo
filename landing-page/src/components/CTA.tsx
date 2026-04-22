@@ -1,7 +1,9 @@
 import { BtnOnDark, IconApple } from "../lib/design";
 
 export function CTA() {
-  const downloadUrl = import.meta.env.VITE_DOWNLOAD_URL || "#download";
+  const downloadUrl =
+    import.meta.env.VITE_DOWNLOAD_URL ||
+    "https://github.com/noobie30/Brifo/releases/download/v0.1.2/Brifo-0.1.2-arm64.dmg";
 
   return (
     <section

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  width: 1200px; height: 627px; overflow: hidden;
+  background: #F3F2EE;
+  font-family: 'Geist', system-ui, sans-serif;
+  display: flex; align-items: center; justify-content: center;
+  padding: 80px 112px; position: relative; text-align: center;
+}
+.inner { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.slide-num { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #2E4FD9; }
+.quote-mark { font-family: 'Instrument Serif', Georgia, serif; font-size: 140px; color: #2E4FD9; line-height: 0.5; opacity: 0.2; }
+.quote { font-family: 'Instrument Serif', Georgia, serif; font-size: 72px; color: #16150f; line-height: 1.15; }
+.wordmark { position: absolute; bottom: 36px; left: 80px; display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #16150f; }
+.wordmark img { width: 20px; height: 20px; }
+.arrow { position: absolute; right: 56px; bottom: 36px; color: #9a988e; font-size: 24px; }
+</style>
+</head>
+<body>
+  <div class="inner">
+    <div class="slide-num">JIRA PUSH · 05/06</div>
+    <div class="quote-mark">"</div>
+    <div class="quote">No more 'who was going<br/>to own that?'</div>
+  </div>
+  <div class="wordmark"><img src="{{LOGO}}"> Brifo</div>
+  <div class="arrow">→</div>
+</body>
+</html>

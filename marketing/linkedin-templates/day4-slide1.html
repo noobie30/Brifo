@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  width: 1200px; height: 627px; overflow: hidden;
+  background: #F3F2EE;
+  font-family: 'Geist', system-ui, sans-serif;
+  display: flex; align-items: center;
+  padding: 80px 112px; gap: 64px; position: relative;
+}
+.left { flex: 1; display: flex; flex-direction: column; gap: 28px; }
+.slide-num { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #2E4FD9; }
+.headline { font-family: 'Instrument Serif', Georgia, serif; font-size: 80px; color: #16150f; line-height: 1.1; }
+.right { flex: 0 0 260px; display: flex; align-items: center; justify-content: center; }
+.icon-ring { width: 240px; height: 240px; border-radius: 50%; background: rgba(46,79,217,0.07); display: flex; align-items: center; justify-content: center; }
+.wordmark { position: absolute; bottom: 36px; left: 80px; display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #16150f; }
+.wordmark img { width: 20px; height: 20px; }
+.arrow { position: absolute; right: 56px; bottom: 36px; color: #9a988e; font-size: 24px; }
+</style>
+</head>
+<body>
+  <div class="left">
+    <div class="slide-num">JIRA PUSH · 01/06</div>
+    <div class="headline">From meeting to Jira in 3 taps.</div>
+  </div>
+  <div class="right">
+    <div class="icon-ring">
+      <img src="{{LOGO}}" style="width:120px;height:120px;object-fit:contain;opacity:0.6;">
+    </div>
+  </div>
+  <div class="wordmark"><img src="{{LOGO}}"> Brifo</div>
+  <div class="arrow">→</div>
+</body>
+</html>

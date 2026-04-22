@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  width: 1200px; height: 627px; overflow: hidden;
+  background: #F3F2EE;
+  font-family: 'Geist', system-ui, sans-serif;
+  display: flex; align-items: center;
+  padding: 60px 80px; gap: 80px; position: relative;
+}
+.left { flex: 0 0 340px; display: flex; flex-direction: column; gap: 20px; }
+.slide-num { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #2E4FD9; }
+.headline { font-family: 'Instrument Serif', Georgia, serif; font-size: 44px; color: #16150f; line-height: 1.2; }
+.sub { font-size: 16px; color: #6f6d63; line-height: 1.6; }
+.right { flex: 1; }
+.mac-window { background: white; border-radius: 14px; border: 1px solid #e6e4de; box-shadow: 0 6px 32px rgba(0,0,0,0.08); overflow: hidden; }
+.mac-bar { background: #f5f4f1; padding: 12px 18px; display: flex; align-items: center; gap: 7px; border-bottom: 1px solid #e6e4de; }
+.dot { width: 12px; height: 12px; border-radius: 50%; }
+.mac-title { margin-left: auto; font-size: 12px; color: #9a988e; }
+.mac-body { padding: 20px; }
+.task-label { font-size: 12px; color: #9a988e; margin-bottom: 10px; }
+.task-name { font-size: 16px; font-weight: 700; color: #16150f; margin-bottom: 14px; }
+.chips { display: flex; gap: 8px; margin-bottom: 16px; }
+.chip { font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 6px; }
+.chip-story { background: #f3f2ee; color: #3a3930; }
+.chip-high  { background: #fee2e2; color: #b42318; }
+.chip-eng   { background: #eff6ff; color: #2E4FD9; }
+.desc { font-size: 13px; color: #6f6d63; line-height: 1.5; margin-bottom: 18px; padding: 12px; background: #f9f8f5; border-radius: 8px; }
+.approve-btn { background: #2E4FD9; color: white; border-radius: 8px; padding: 14px 20px; font-size: 14px; font-weight: 700; text-align: center; }
+.wordmark { position: absolute; bottom: 36px; left: 80px; display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #16150f; }
+.wordmark img { width: 20px; height: 20px; }
+.arrow { position: absolute; right: 56px; bottom: 36px; color: #9a988e; font-size: 24px; }
+</style>
+</head>
+<body>
+  <div class="left">
+    <div class="slide-num">JIRA PUSH · 03/06</div>
+    <div class="headline">Review. Approve. Pushed.</div>
+    <div class="sub">Priority inferred. Assignee suggested. Description tied to the transcript. One tap to approve.</div>
+  </div>
+  <div class="right">
+    <div class="mac-window">
+      <div class="mac-bar">
+        <div class="dot" style="background:#ff5f57;"></div>
+        <div class="dot" style="background:#febc2e;"></div>
+        <div class="dot" style="background:#28c840;"></div>
+        <div class="mac-title">Task detail</div>
+      </div>
+      <div class="mac-body">
+        <div class="task-label">Ship auth refactor</div>
+        <div class="chips">
+          <span class="chip chip-story">Story</span>
+          <span class="chip chip-high">High</span>
+          <span class="chip chip-eng">Engineering</span>
+        </div>
+        <div class="desc">Refactor the authentication middleware to meet new compliance requirements around session token storage. Flagged in sprint planning.</div>
+        <div class="approve-btn">→ Approve &amp; push to Jira</div>
+      </div>
+    </div>
+  </div>
+  <div class="wordmark"><img src="{{LOGO}}"> Brifo</div>
+  <div class="arrow">→</div>
+</body>
+</html>
