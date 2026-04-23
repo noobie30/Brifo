@@ -3,10 +3,13 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   AutoCaptureState,
   PermissionError,
+  StreamStats,
   getAutoCaptureState,
+  getStreamStats,
   startAutoCapture,
   stopAutoCapture,
   subscribeAutoCapture,
+  subscribeStreamStats,
 } from "../lib/auto-capture";
 import { generateNotes, getMeeting } from "../lib/api";
 import {
@@ -54,6 +57,30 @@ function formatQuickNoteTitle() {
   return `Quick Note ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatStreamHealth(
+  stats: StreamStats,
+  capture: AutoCaptureState,
+): string {
+  const sourceLabel =
+    capture.systemAudioStatus === "active" ? "mic + system" : "mic only";
+  if (stats.consecutiveReconnects > 0) {
+    return `${sourceLabel} — reconnecting (${stats.consecutiveReconnects})`;
+  }
+  if (stats.consecutiveFailures > 3) {
+    return `${sourceLabel} — stream errors (${stats.consecutiveFailures})`;
+  }
+  if (stats.bytesStreamed === 0) {
+    return `${sourceLabel} — connecting…`;
+  }
+  return `${sourceLabel} — ${formatBytes(stats.bytesStreamed)} sent`;
+}
+
 export function QuickNotePage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,6 +94,9 @@ export function QuickNotePage() {
   const [noteTitle, setNoteTitle] = useState("Quick Note");
   const [captureState, setCaptureState] = useState<AutoCaptureState | null>(
     getAutoCaptureState(),
+  );
+  const [streamStats, setStreamStats] = useState<StreamStats>(
+    () => getStreamStats(),
   );
   const [error, setError] = useState<string | null>(null);
   const [isPermissionError, setIsPermissionError] = useState(false);
@@ -98,6 +128,7 @@ export function QuickNotePage() {
   }, [draft]);
 
   useEffect(() => subscribeAutoCapture(setCaptureState), []);
+  useEffect(() => subscribeStreamStats(setStreamStats), []);
 
   useEffect(() => {
     if (finalizePhase === "idle") {
@@ -145,10 +176,32 @@ export function QuickNotePage() {
   async function onToggleCapture() {
     try {
       if (captureState) {
+        // Snapshot the server-assigned meetingId BEFORE any async work. The
+        // ref is updated synchronously in startAutoCapture's .then(), while
+        // `quickNoteMeetingId` state may still be the placeholder until
+        // React re-renders.
+        const currentMeetingId = meetingIdRef.current || quickNoteMeetingId;
         setStatusText(null);
         setFinalizePhase("transcribing");
-        await stopAutoCapture("manual");
-        await finalizeTranscriptAndNotes(shouldAutoGenerateAfterStop);
+
+        // Pre-claim finalization BEFORE stopAutoCapture fires its stop
+        // listeners synchronously. Without this, BackgroundFinalizer (also
+        // subscribed to the stop event) can win the claim and leave Quick
+        // Note's UI stuck on "Transcribing…" forever.
+        const claimed = claimFinalization(currentMeetingId);
+
+        try {
+          await stopAutoCapture("manual");
+          if (!claimed) {
+            // BackgroundFinalizer is already handling this capture — just
+            // clear the Quick Note overlay so the UI doesn't look stuck.
+            setFinalizePhase("idle");
+            return;
+          }
+          await runFinalize(currentMeetingId, shouldAutoGenerateAfterStop);
+        } finally {
+          if (claimed) releaseFinalization(currentMeetingId);
+        }
         return;
       }
 
@@ -181,14 +234,11 @@ export function QuickNotePage() {
     }
   }
 
-  async function finalizeTranscriptAndNotes(autoGenerate: boolean) {
-    // Claim this meetingId so BackgroundFinalizer skips it
-    if (!claimFinalization(quickNoteMeetingId)) {
-      return;
-    }
-
+  // Runs the transcript-stability poll + optional notes generation. The
+  // finalization claim is held by the caller — do not claim/release here.
+  async function runFinalize(meetingId: string, autoGenerate: boolean) {
     try {
-      const transcript = await waitForTranscriptStability(quickNoteMeetingId);
+      const transcript = await waitForTranscriptStability(meetingId);
       if (!transcript.length) {
         throw new Error(
           "No transcript captured yet. Keep listening for a bit longer, then stop again.",
@@ -198,7 +248,7 @@ export function QuickNotePage() {
       // Fetch speaker map to resolve generic labels to real names
       let speakerMap: Record<string, string> | undefined;
       try {
-        const meetingData = await getMeeting(quickNoteMeetingId);
+        const meetingData = await getMeeting(meetingId);
         speakerMap =
           meetingData?.speakerMap &&
           Object.keys(meetingData.speakerMap).length > 0
@@ -231,7 +281,7 @@ export function QuickNotePage() {
       setFinalizePhase("idle");
       if (autoGenerate) {
         setFinalizePhase("generating");
-        await generateNotes(quickNoteMeetingId, {
+        await generateNotes(meetingId, {
           meetingTitle: resolvedQuickNoteTitle,
           rawUserNotes: mergedNotes || undefined,
           templateUsed: "general",
@@ -241,7 +291,7 @@ export function QuickNotePage() {
         setDraft("");
         localStorage.removeItem(QUICK_NOTE_DRAFT_KEY);
         setError(null);
-        navigate(`/documents/${quickNoteMeetingId}`);
+        navigate(`/documents/${meetingId}`);
         return;
       }
       setStatusText("Transcript added to notes.");
@@ -254,12 +304,17 @@ export function QuickNotePage() {
           ? finalizeError.message
           : "Stopped capture, but could not finish transcript and note generation.",
       );
-    } finally {
-      releaseFinalization(quickNoteMeetingId);
     }
   }
 
   async function onDeleteNote() {
+    const currentMeetingId = meetingIdRef.current || quickNoteMeetingId;
+    // Pre-claim so BackgroundFinalizer doesn't try to generate notes for a
+    // note the user just asked to delete.
+    const claimed =
+      captureState && finalizePhase === "idle"
+        ? claimFinalization(currentMeetingId)
+        : false;
     try {
       if (captureState && finalizePhase === "idle") {
         setFinalizePhase("transcribing");
@@ -268,6 +323,7 @@ export function QuickNotePage() {
     } catch {
       // Ignore stop failure here and allow local draft clear.
     } finally {
+      if (claimed) releaseFinalization(currentMeetingId);
       setFinalizePhase("idle");
       setDraft("");
       setNoteTitle("Quick Note");
@@ -306,7 +362,7 @@ export function QuickNotePage() {
         </DButton>
         <div className="flex-1" />
         {captureState && !isBusy && (
-          <span className="inline-flex items-center gap-1.5 text-[11.5px] text-danger">
+          <span className="inline-flex items-center gap-2 text-[11.5px] text-danger">
             <span
               className="inline-block rounded-full animate-pulse"
               style={{
@@ -315,7 +371,7 @@ export function QuickNotePage() {
                 background: "var(--color-danger)",
               }}
             />
-            Recording — mic only
+            Recording — {formatStreamHealth(streamStats, captureState)}
           </span>
         )}
       </div>

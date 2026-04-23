@@ -110,6 +110,59 @@ const noticeListeners = new Set<
 const stopListeners = new Set<(event: AutoCaptureStopEvent) => void>();
 const calendarAutoStarted = new Set<string>();
 
+// ── Stream health (exposed for diagnostic UI) ──────────────────────────
+export interface StreamStats {
+  bytesStreamed: number;
+  consecutiveFailures: number;
+  consecutiveReconnects: number;
+  lastError: string | null;
+}
+
+let streamStats: StreamStats = {
+  bytesStreamed: 0,
+  consecutiveFailures: 0,
+  consecutiveReconnects: 0,
+  lastError: null,
+};
+const streamStatsListeners = new Set<(stats: StreamStats) => void>();
+
+export function getStreamStats(): StreamStats {
+  return streamStats;
+}
+
+export function subscribeStreamStats(
+  listener: (stats: StreamStats) => void,
+): () => void {
+  streamStatsListeners.add(listener);
+  listener(streamStats);
+  return () => {
+    streamStatsListeners.delete(listener);
+  };
+}
+
+function emitStreamStats() {
+  for (const listener of streamStatsListeners) {
+    try {
+      listener(streamStats);
+    } catch (error) {
+      console.error(
+        "[brifo][auto-capture] stream stats listener threw:",
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+}
+
+function resetStreamStats() {
+  streamStats = {
+    bytesStreamed: 0,
+    consecutiveFailures: 0,
+    consecutiveReconnects: 0,
+    lastError: null,
+  };
+  emitStreamStats();
+}
+
 // Listen for meeting-ended signal from main process. Main fires this only
 // after MEETING_GONE_STOP_DELAY_MS of no detectable meeting signal (30s) —
 // see desktop/src/main/index.ts runMeetingDetectorTick capture branch.
@@ -567,6 +620,7 @@ export async function startAutoCapture(input: StartCaptureInput) {
     consecutiveReconnectFailures = 0;
     lastReconnectAttemptAt = 0;
     totalBytesStreamed = 0;
+    resetStreamStats();
     setupPcmStreaming(stream);
 
     setupSilenceDetection(stream);
@@ -637,13 +691,28 @@ function setupPcmStreaming(stream: MediaStream) {
         consecutiveStreamFailures = 0;
         consecutiveReconnectFailures = 0;
         totalBytesStreamed += merged.byteLength;
+        streamStats = {
+          ...streamStats,
+          bytesStreamed: totalBytesStreamed,
+          consecutiveFailures: 0,
+          consecutiveReconnects: 0,
+        };
+        emitStreamStats();
       })
       .catch((error) => {
         consecutiveStreamFailures += 1;
+        const errMsg =
+          error instanceof Error ? error.message : String(error);
         console.warn(
           `[brifo][auto-capture] Stream audio send failed (${consecutiveStreamFailures}/${MAX_STREAM_FAILURES}):`,
-          error instanceof Error ? error.message : error,
+          errMsg,
         );
+        streamStats = {
+          ...streamStats,
+          consecutiveFailures: consecutiveStreamFailures,
+          lastError: errMsg,
+        };
+        emitStreamStats();
 
         // Proactively try to re-open the streaming session on the backend.
         // Throttled by cooldown and capped at MAX_RECONNECT_ATTEMPTS so a
@@ -668,15 +737,29 @@ function setupPcmStreaming(stream: MediaStream) {
               );
               consecutiveStreamFailures = 0;
               consecutiveReconnectFailures = 0;
+              streamStats = {
+                ...streamStats,
+                consecutiveFailures: 0,
+                consecutiveReconnects: 0,
+              };
+              emitStreamStats();
             })
             .catch((reopenError) => {
               consecutiveReconnectFailures += 1;
-              console.warn(
-                `[brifo][auto-capture] Stream reopen failed (${consecutiveReconnectFailures}/${MAX_RECONNECT_ATTEMPTS}):`,
+              const reopenMsg =
                 reopenError instanceof Error
                   ? reopenError.message
-                  : reopenError,
+                  : String(reopenError);
+              console.warn(
+                `[brifo][auto-capture] Stream reopen failed (${consecutiveReconnectFailures}/${MAX_RECONNECT_ATTEMPTS}):`,
+                reopenMsg,
               );
+              streamStats = {
+                ...streamStats,
+                consecutiveReconnects: consecutiveReconnectFailures,
+                lastError: reopenMsg,
+              };
+              emitStreamStats();
             });
         }
 
@@ -805,6 +888,7 @@ export async function stopAutoCapture(reason: StopReason = "manual") {
     consecutiveReconnectFailures = 0;
     lastReconnectAttemptAt = 0;
     totalBytesStreamed = 0;
+    resetStreamStats();
 
     activeState = null;
     stopInProgress = false;
