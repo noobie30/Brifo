@@ -181,7 +181,12 @@ export class DeepgramStreamingService {
       encoding: "linear16",
       sample_rate: "16000",
       channels: "1",
-      interim_results: "false",
+      // Deepgram rejects the handshake with HTTP 400
+      // "Utterance End feature requires interim results" when
+      // utterance_end_ms is set but interim_results is false. handleMessage
+      // early-returns on !data.is_final, so enabling interim results adds
+      // no observable behavior — it only makes Deepgram accept the config.
+      interim_results: "true",
       utterance_end_ms: "1500",
       vad_events: "true",
     });
