@@ -46,6 +46,14 @@ export class Note {
 
   @Prop({ default: "" })
   followUpEmail!: string;
+
+  // Which generator produced this note. "mastra" means the OpenAI-backed
+  // Mastra agent ran successfully; "fallback" means we used the
+  // deterministic keyword-extraction heuristics (Mastra failed or
+  // OPENAI_API_KEY was missing). Surfaced in the UI so users know when
+  // they're seeing a degraded summary instead of a real AI write-up.
+  @Prop({ enum: ["mastra", "fallback"], default: "mastra" })
+  aiGenerator!: "mastra" | "fallback";
 }
 
 export const NoteSchema = SchemaFactory.createForClass(Note);

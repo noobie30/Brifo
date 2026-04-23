@@ -60,6 +60,10 @@ export interface NoteRecord extends GeneratedNoteSections {
   meetingTitle?: string;
   rawUserNotes: string;
   templateUsed: string;
+  // "mastra" = AI-backed Mastra agent, "fallback" = deterministic heuristics
+  // (used when OPENAI_API_KEY is missing or the AI call failed). Optional
+  // because older notes won't have it set.
+  aiGenerator?: "mastra" | "fallback";
   createdAt?: string;
   updatedAt?: string;
 }

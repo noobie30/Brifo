@@ -52,15 +52,16 @@ export class NotesService {
       confidence: segment.confidence,
     }));
 
-    const generated = await this.aiService.generateMeetingNotes({
-      meetingTitle: payload.meetingTitle?.trim() || `Meeting ${meetingId}`,
-      rawUserNotes: payload.rawUserNotes,
-      templateUsed: payload.templateUsed,
-      loggedInUserName,
-      transcript,
-      includeActionItems: shouldGenerateTasks,
-      speakerMap,
-    });
+    const { sections: generated, generator } =
+      await this.aiService.generateMeetingNotes({
+        meetingTitle: payload.meetingTitle?.trim() || `Meeting ${meetingId}`,
+        rawUserNotes: payload.rawUserNotes,
+        templateUsed: payload.templateUsed,
+        loggedInUserName,
+        transcript,
+        includeActionItems: shouldGenerateTasks,
+        speakerMap,
+      });
     const generatedActionItems = shouldGenerateTasks
       ? generated.actionItems
       : (existingNote?.actionItems ?? []);
@@ -82,6 +83,7 @@ export class NotesService {
             openQuestions: generated.openQuestions,
             risks: generated.risks,
             followUpEmail: generated.followUpEmail,
+            aiGenerator: generator,
           },
         },
         { upsert: true, new: true },

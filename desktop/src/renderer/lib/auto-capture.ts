@@ -1,4 +1,5 @@
 import {
+  ApiError,
   sendStreamAudio,
   startMeeting,
   startTranscriptStream,
@@ -116,6 +117,15 @@ export interface StreamStats {
   consecutiveFailures: number;
   consecutiveReconnects: number;
   lastError: string | null;
+  // Backend-reported counters (from the /transcript/stream/audio response).
+  // segmentsAccepted is what Deepgram returned AND we successfully persisted.
+  // segmentsDropped is the difference between Deepgram-returned and
+  // persisted (Mongo write failed after retries on the backend). When the
+  // bytes climb but segmentsAccepted stays at 0, audio is reaching us but
+  // Deepgram is producing nothing — useful diagnostic for the user.
+  segmentsAccepted: number;
+  segmentsDropped: number;
+  lastBackendError: string | null;
 }
 
 let streamStats: StreamStats = {
@@ -123,6 +133,9 @@ let streamStats: StreamStats = {
   consecutiveFailures: 0,
   consecutiveReconnects: 0,
   lastError: null,
+  segmentsAccepted: 0,
+  segmentsDropped: 0,
+  lastBackendError: null,
 };
 const streamStatsListeners = new Set<(stats: StreamStats) => void>();
 
@@ -159,6 +172,9 @@ function resetStreamStats() {
     consecutiveFailures: 0,
     consecutiveReconnects: 0,
     lastError: null,
+    segmentsAccepted: 0,
+    segmentsDropped: 0,
+    lastBackendError: null,
   };
   emitStreamStats();
 }
@@ -262,6 +278,16 @@ export class PermissionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "PermissionError";
+  }
+}
+
+// Thrown when the backend reports DEEPGRAM_API_KEY is missing. Distinct from
+// PermissionError so callers (banners, QuickNotePage) can show a different
+// message — this is a server-side config problem, not a macOS permission.
+export class TranscriptionDisabledError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TranscriptionDisabledError";
   }
 }
 
@@ -483,11 +509,28 @@ async function getMixedAudioStreams(): Promise<MixedAudioResult> {
         );
       } else {
         const systemStream = await captureSystemAudio(sourceId);
-        if (systemStream?.getAudioTracks().length) {
+        const systemAudioTrack = systemStream?.getAudioTracks()[0];
+        if (systemStream && systemAudioTrack) {
           const systemSource =
             audioContext.createMediaStreamSource(systemStream);
           systemSource.connect(destination);
           systemAudioStatus = "active";
+          // If macOS revokes Screen Recording permission mid-capture, or the
+          // OS otherwise tears down this track, mark systemAudioStatus
+          // "unavailable" so SystemAudioWarningBanner can show — silent loss
+          // of others' voices is the worst failure mode here.
+          systemAudioTrack.addEventListener("ended", () => {
+            if (activeState && activeState.systemAudioStatus === "active") {
+              console.warn(
+                "[brifo][auto-capture] System audio track ended mid-capture (Screen Recording permission revoked?).",
+              );
+              activeState = {
+                ...activeState,
+                systemAudioStatus: "unavailable",
+              };
+              emitState();
+            }
+          });
         } else {
           console.warn(
             "[brifo][auto-capture] System audio unavailable: getUserMedia returned no audio track.",
@@ -614,7 +657,23 @@ export async function startAutoCapture(input: StartCaptureInput) {
     const { stream, systemAudioStatus } = await getMixedAudioStreams();
     stopInProgress = false;
 
-    await startTranscriptStream(activeState.meetingId);
+    try {
+      await startTranscriptStream(activeState.meetingId);
+    } catch (error) {
+      // Backend returns 503 with reason="deepgram_not_configured" when the
+      // DEEPGRAM_API_KEY env var is missing. Abort the recording loudly
+      // instead of letting the renderer push audio that goes nowhere.
+      if (
+        error instanceof ApiError &&
+        (error.status === 503 || error.reason === "deepgram_not_configured")
+      ) {
+        throw new TranscriptionDisabledError(
+          error.message ||
+            "Transcription is disabled — DEEPGRAM_API_KEY not set on backend.",
+        );
+      }
+      throw error;
+    }
     streamingActive = true;
     consecutiveStreamFailures = 0;
     consecutiveReconnectFailures = 0;
@@ -687,15 +746,27 @@ function setupPcmStreaming(stream: MediaStream) {
     });
     const currentMeetingId = activeState.meetingId;
     void sendStreamAudio(currentMeetingId, blob)
-      .then(() => {
+      .then((response) => {
         consecutiveStreamFailures = 0;
         consecutiveReconnectFailures = 0;
         totalBytesStreamed += merged.byteLength;
+        const health = response?.health;
+        // The backend may report accepted=false with a session-recycle reason
+        // even on HTTP 200. Surface that without flipping into the catch
+        // branch — the renderer keeps sending and the backend transparently
+        // re-opens. Only the visible health stats need to update.
+        const backendReason =
+          response && response.accepted === false ? response.reason ?? null : null;
         streamStats = {
           ...streamStats,
           bytesStreamed: totalBytesStreamed,
           consecutiveFailures: 0,
           consecutiveReconnects: 0,
+          segmentsAccepted: health?.segmentsInserted ?? streamStats.segmentsAccepted,
+          segmentsDropped: health?.segmentsDropped ?? streamStats.segmentsDropped,
+          lastBackendError:
+            health?.lastError ??
+            (backendReason ? `backend: ${backendReason}` : streamStats.lastBackendError),
         };
         emitStreamStats();
       })
@@ -887,8 +958,12 @@ export async function stopAutoCapture(reason: StopReason = "manual") {
     consecutiveStreamFailures = 0;
     consecutiveReconnectFailures = 0;
     lastReconnectAttemptAt = 0;
-    totalBytesStreamed = 0;
-    resetStreamStats();
+    // NOTE: we do NOT reset totalBytesStreamed / streamStats here. The
+    // finalize step (waitForTranscriptStability) reads bytesStreamed to
+    // decide how long to wait for the backend to drain Deepgram's final
+    // results — if we zero it here, finalize would always think no audio
+    // was captured and bail early. The next startAutoCapture() resets
+    // everything via resetStreamStats() before recording resumes.
 
     activeState = null;
     stopInProgress = false;

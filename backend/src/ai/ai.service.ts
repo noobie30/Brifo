@@ -16,6 +16,11 @@ interface GenerateNotesInput {
   speakerMap?: Record<string, string>;
 }
 
+export interface GenerateMeetingNotesResult {
+  sections: GeneratedNoteSections;
+  generator: "mastra" | "fallback";
+}
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
@@ -24,7 +29,7 @@ export class AiService {
 
   async generateMeetingNotes(
     input: GenerateNotesInput,
-  ): Promise<GeneratedNoteSections> {
+  ): Promise<GenerateMeetingNotesResult> {
     const includeActionItems = input.includeActionItems ?? true;
 
     if (!input.transcript.length && !input.rawUserNotes?.trim()) {
@@ -40,7 +45,10 @@ export class AiService {
             input,
             includeActionItems,
           );
-        return generatedNoteSectionsSchema.parse(generated);
+        return {
+          sections: generatedNoteSectionsSchema.parse(generated),
+          generator: "mastra",
+        };
       } catch (error) {
         this.logger.warn(
           `Mastra notes generation failed, using deterministic fallback: ${error instanceof Error ? error.message : String(error)}`,
@@ -53,7 +61,10 @@ export class AiService {
     }
 
     const fallback = this.generateFallbackNotes(input, includeActionItems);
-    return generatedNoteSectionsSchema.parse(fallback);
+    return {
+      sections: generatedNoteSectionsSchema.parse(fallback),
+      generator: "fallback",
+    };
   }
 
   async answerMeetingQuestion(

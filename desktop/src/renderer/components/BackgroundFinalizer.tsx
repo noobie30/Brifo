@@ -9,7 +9,10 @@ import {
 import { Button } from "./ui";
 
 const BANNER_AUTO_DISMISS_MS = 15_000;
-const BANNER_ERROR_AUTO_DISMISS_MS = 20_000;
+// Error banners are NOT auto-dismissed: a user who steps away from the
+// machine for a few minutes after stopping a recording would otherwise miss
+// the only signal that their notes failed to generate.
+const BANNER_ERROR_AUTO_DISMISS_MS: number | null = null;
 const BANNER_ANIMATION_MS = 300;
 
 type BannerKind = "success" | "error";
@@ -61,12 +64,16 @@ export function BackgroundFinalizer() {
   }, []);
 
   const showBanner = useCallback(
-    (next: BannerState, autoDismissMs: number) => {
+    (next: BannerState, autoDismissMs: number | null) => {
       if (!isMountedRef.current) return;
       setBanner(next);
       setVisible(true);
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(dismiss, autoDismissMs);
+      if (autoDismissMs !== null) {
+        timerRef.current = setTimeout(dismiss, autoDismissMs);
+      } else {
+        timerRef.current = null;
+      }
     },
     [dismiss],
   );

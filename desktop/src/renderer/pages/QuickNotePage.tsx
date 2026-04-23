@@ -63,22 +63,54 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+interface StreamHealth {
+  text: string;
+  tone: "normal" | "warn" | "error";
+}
+
 function formatStreamHealth(
   stats: StreamStats,
   capture: AutoCaptureState,
-): string {
+): StreamHealth {
   const sourceLabel =
     capture.systemAudioStatus === "active" ? "mic + system" : "mic only";
   if (stats.consecutiveReconnects > 0) {
-    return `${sourceLabel} — reconnecting (${stats.consecutiveReconnects})`;
+    return {
+      text: `${sourceLabel} — reconnecting (${stats.consecutiveReconnects})`,
+      tone: "warn",
+    };
   }
   if (stats.consecutiveFailures > 3) {
-    return `${sourceLabel} — stream errors (${stats.consecutiveFailures})`;
+    return {
+      text: `${sourceLabel} — stream errors (${stats.consecutiveFailures})`,
+      tone: "error",
+    };
   }
   if (stats.bytesStreamed === 0) {
-    return `${sourceLabel} — connecting…`;
+    return { text: `${sourceLabel} — connecting…`, tone: "normal" };
   }
-  return `${sourceLabel} — ${formatBytes(stats.bytesStreamed)} sent`;
+
+  // Server-side health: bytes are flowing, but Deepgram has produced nothing.
+  // Past a comfortable threshold (>5 MB ≈ 2.5 minutes of speech) this almost
+  // always means audio is silence, the wrong device is selected, or the
+  // backend's Deepgram session has been disconnected — surface it loudly.
+  const FIVE_MB = 5 * 1024 * 1024;
+  if (stats.bytesStreamed > FIVE_MB && stats.segmentsAccepted === 0) {
+    return {
+      text: `${sourceLabel} — sending audio but server returned no transcript (check mic input or backend logs)`,
+      tone: "error",
+    };
+  }
+
+  const segmentsLabel =
+    stats.segmentsAccepted > 0 ? ` · ${stats.segmentsAccepted} segments` : "";
+  const droppedLabel =
+    stats.segmentsDropped > 0 ? ` · ${stats.segmentsDropped} dropped` : "";
+  const tone: "normal" | "warn" = stats.segmentsDropped > 0 ? "warn" : "normal";
+  return {
+    text: `${sourceLabel} — ${formatBytes(stats.bytesStreamed)} sent${segmentsLabel}${droppedLabel}`,
+    tone,
+  };
 }
 
 export function QuickNotePage() {
@@ -361,19 +393,33 @@ export function QuickNotePage() {
           Back
         </DButton>
         <div className="flex-1" />
-        {captureState && !isBusy && (
-          <span className="inline-flex items-center gap-2 text-[11.5px] text-danger">
-            <span
-              className="inline-block rounded-full animate-pulse"
-              style={{
-                width: 8,
-                height: 8,
-                background: "var(--color-danger)",
-              }}
-            />
-            Recording — {formatStreamHealth(streamStats, captureState)}
-          </span>
-        )}
+        {captureState &&
+          !isBusy &&
+          (() => {
+            const health = formatStreamHealth(streamStats, captureState);
+            const colorVar =
+              health.tone === "error"
+                ? "var(--color-danger)"
+                : health.tone === "warn"
+                  ? "var(--color-warning, var(--color-danger))"
+                  : "var(--color-danger)";
+            return (
+              <span
+                className="inline-flex items-center gap-2 text-[11.5px]"
+                style={{ color: colorVar }}
+              >
+                <span
+                  className="inline-block rounded-full animate-pulse"
+                  style={{
+                    width: 8,
+                    height: 8,
+                    background: colorVar,
+                  }}
+                />
+                Recording — {health.text}
+              </span>
+            );
+          })()}
       </div>
 
       {/* Editor */}

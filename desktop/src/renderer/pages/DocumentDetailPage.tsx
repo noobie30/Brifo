@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useNavigate, useParams } from "react-router-dom";
 import remarkGfm from "remark-gfm";
-import { getNotes } from "../lib/api";
+import { ApiError, getNotes } from "../lib/api";
 import { useAppStore } from "../store/app-store";
 import { NoteRecord } from "../types";
 import { Card, Chip, DButton } from "../components/design";
@@ -66,9 +66,18 @@ export function DocumentDetailPage() {
     setError(null);
     void getNotes(meetingId)
       .then(setNote)
-      .catch(() => {
+      .catch((err: unknown) => {
         setNote(null);
-        setError("No generated notes found yet.");
+        // Distinguish "not generated yet" (404) from real backend errors.
+        // Lumping them together hides server-side problems behind the
+        // friendly "No generated notes found yet." message.
+        if (err instanceof ApiError && err.status === 404) {
+          setError("No generated notes found yet.");
+        } else if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("Failed to load document.");
+        }
       })
       .finally(() => setLoading(false));
   }, [meetingId]);
@@ -182,6 +191,22 @@ export function DocumentDetailPage() {
           >
             {documentTitle}
           </h1>
+
+          {note?.aiGenerator === "fallback" && (
+            <div
+              className="mt-3 inline-flex items-center gap-2 text-[12px] px-3 py-1.5 rounded-md"
+              style={{
+                background: "rgba(245, 158, 11, 0.08)",
+                color: "rgb(146, 64, 14)",
+                border: "1px solid rgba(245, 158, 11, 0.25)",
+              }}
+              role="note"
+            >
+              <span>⚠</span>
+              AI fallback used — set OPENAI_API_KEY on the backend to get a
+              richer summary.
+            </div>
+          )}
 
 
 {summaryMarkdown && (

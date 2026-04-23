@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpException,
+  HttpStatus,
   Param,
   Post,
   UploadedFile,
@@ -53,6 +55,19 @@ export class TranscriptsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("meetingId") meetingId: string,
   ) {
+    if (!this.deepgramStreamingService.isConfigured()) {
+      // Surface the missing key as 503 so the renderer can stop the recording
+      // immediately and tell the user, instead of silently uploading audio
+      // into a void.
+      throw new HttpException(
+        {
+          message:
+            "Transcription is disabled — DEEPGRAM_API_KEY not set on backend.",
+          reason: "deepgram_not_configured",
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
     return this.deepgramStreamingService.startSession(
       user.userId,
       meetingId.trim(),
@@ -79,12 +94,13 @@ export class TranscriptsController {
       file.buffer,
     );
     if (result.ok) {
-      return { accepted: true };
+      return { accepted: true, health: result.health };
     }
     return {
       accepted: false,
       reason: result.reason,
       ...(result.message ? { message: result.message } : {}),
+      health: result.health,
     };
   }
 
@@ -93,10 +109,10 @@ export class TranscriptsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("meetingId") meetingId: string,
   ) {
-    await this.deepgramStreamingService.stopSession(
+    const health = await this.deepgramStreamingService.stopSession(
       user.userId,
       meetingId.trim(),
     );
-    return { stopped: true };
+    return { stopped: true, health };
   }
 }

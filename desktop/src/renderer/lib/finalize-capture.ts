@@ -1,4 +1,5 @@
 import { generateNotes, getMeeting, getTranscript } from "./api";
+import { getStreamStats } from "./auto-capture";
 import { TranscriptSegmentRecord } from "../types";
 import { useAppStore } from "../store/app-store";
 
@@ -26,12 +27,17 @@ export async function waitForTranscriptStability(
   // stops. 60 attempts × 3s = 3 minutes gives enough headroom once we
   // know the meeting produced any transcript at all.
   //
-  // If no segments appear in the first EMPTY_BAIL_ATTEMPTS polls (~60s),
-  // the capture probably recorded nothing usable — bail early so the UI
-  // can show an actionable error instead of a 3-minute silent wait.
+  // If no segments appear in the first EMPTY_BAIL_ATTEMPTS polls, the
+  // capture probably recorded nothing usable — bail early so the UI can
+  // show an actionable error instead of a 3-minute silent wait. The
+  // threshold scales with how much audio actually reached the backend:
+  //   - bytes < 100 KB → bail at 60 s (genuinely no audio captured)
+  //   - bytes ≥ 1 MB  → wait up to 120 s (audio uploaded; backend may
+  //     still be cold-starting or finalising the Deepgram close handshake)
   const maxAttempts = 60;
   const waitMs = 3000;
-  const EMPTY_BAIL_ATTEMPTS = 20;
+  const bytesStreamedAtStart = getStreamStats().bytesStreamed;
+  const EMPTY_BAIL_ATTEMPTS = bytesStreamedAtStart >= 1_000_000 ? 40 : 20;
 
   let lastCount = -1;
   let stableTicks = 0;

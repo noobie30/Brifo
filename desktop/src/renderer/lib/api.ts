@@ -56,6 +56,17 @@ const api = axios.create({
 export type NoteOutputMode = "document" | "tasks" | "both";
 const NOTE_GENERATION_TIMEOUT_MS = 120000;
 
+export class ApiError extends Error {
+  status: number | null;
+  reason: string | null;
+  constructor(message: string, status: number | null, reason: string | null) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.reason = reason;
+  }
+}
+
 function encodeMeetingId(meetingId: string) {
   return encodeURIComponent(meetingId);
 }
@@ -135,18 +146,22 @@ api.interceptors.response.use(
         state.handleExpiredSession();
       }
       return Promise.reject(
-        new Error(
+        new ApiError(
           error?.response?.data?.message ??
             "Your session expired. Please sign in again.",
+          401,
+          "unauthorized",
         ),
       );
     }
 
+    const status = error?.response?.status ?? null;
+    const reason = error?.response?.data?.reason ?? null;
     const message =
       error?.response?.data?.message ??
       error?.message ??
       "Request failed. Please try again.";
-    return Promise.reject(new Error(message));
+    return Promise.reject(new ApiError(message, status, reason));
   },
 );
 
@@ -217,6 +232,19 @@ export async function getTranscriptHistory(limit = 20) {
   return data as TranscriptHistoryRecord[];
 }
 
+export interface StreamSessionHealth {
+  segmentsInserted: number;
+  segmentsDropped: number;
+  lastError: string | null;
+}
+
+export interface SendStreamAudioResponse {
+  accepted: boolean;
+  reason?: string;
+  message?: string;
+  health?: StreamSessionHealth;
+}
+
 export async function startTranscriptStream(meetingId: string) {
   const { data } = await api.post(
     `/meetings/${encodeMeetingId(meetingId)}/transcript/stream/start`,
@@ -224,20 +252,25 @@ export async function startTranscriptStream(meetingId: string) {
   return data as { sessionId: string };
 }
 
-export async function sendStreamAudio(meetingId: string, pcmBlob: Blob) {
+export async function sendStreamAudio(
+  meetingId: string,
+  pcmBlob: Blob,
+): Promise<SendStreamAudioResponse> {
   const formData = new FormData();
   formData.append("audio", pcmBlob, "audio.pcm");
-  await api.post(
+  const { data } = await api.post(
     `/meetings/${encodeMeetingId(meetingId)}/transcript/stream/audio`,
     formData,
     { headers: { "Content-Type": "multipart/form-data" } },
   );
+  return data as SendStreamAudioResponse;
 }
 
 export async function stopTranscriptStream(meetingId: string) {
-  await api.post(
+  const { data } = await api.post(
     `/meetings/${encodeMeetingId(meetingId)}/transcript/stream/stop`,
   );
+  return data as { stopped: boolean; health?: StreamSessionHealth };
 }
 
 export async function generateNotes(

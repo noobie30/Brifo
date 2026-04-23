@@ -38,19 +38,46 @@ interface StreamingSession {
   ws: WebSocket;
   startedAt: number;
   segmentCount: number;
+  // Number of segments Deepgram returned that we tried to persist but
+  // couldn't (Mongo write failed after retries). Non-zero means the
+  // backend is silently losing transcript data — surface this to the
+  // renderer so the user knows their recording is not landing.
+  dropCount: number;
+  lastError: string | null;
   // Offset (ms) to add to Deepgram-relative timestamps so segments line up
   // with the wall-clock meeting start. Non-zero when this session was
   // re-opened mid-meeting after a Vercel instance recycle.
   timeOffsetMs: number;
 }
 
+export interface SessionHealth {
+  segmentsInserted: number;
+  segmentsDropped: number;
+  lastError: string | null;
+}
+
 export type SendAudioResult =
-  | { ok: true }
+  | { ok: true; health: SessionHealth }
   | {
       ok: false;
       reason: "reopen_failed" | "session_not_open" | "send_failed";
       message?: string;
+      health: SessionHealth;
     };
+
+const EMPTY_HEALTH: SessionHealth = {
+  segmentsInserted: 0,
+  segmentsDropped: 0,
+  lastError: null,
+};
+
+function snapshotHealth(session: StreamingSession): SessionHealth {
+  return {
+    segmentsInserted: session.segmentCount,
+    segmentsDropped: session.dropCount,
+    lastError: session.lastError,
+  };
+}
 
 @Injectable()
 export class DeepgramStreamingService {
@@ -170,6 +197,8 @@ export class DeepgramStreamingService {
       ws,
       startedAt: Date.now(),
       segmentCount: 0,
+      dropCount: 0,
+      lastError: null,
       timeOffsetMs,
     };
 
@@ -234,7 +263,11 @@ export class DeepgramStreamingService {
     let data: DeepgramResult;
     try {
       data = JSON.parse(raw.toString()) as DeepgramResult;
-    } catch {
+    } catch (parseError) {
+      const preview = raw.toString().slice(0, 200);
+      const msg = `Deepgram payload JSON parse failed (${raw.length}B): ${preview}`;
+      session.lastError = msg;
+      this.logger.warn(`[${session.meetingId}] ${msg}`);
       return;
     }
 
@@ -244,12 +277,18 @@ export class DeepgramStreamingService {
 
     const alternatives = data.channel?.alternatives;
     if (!alternatives?.length) {
+      this.logger.debug(
+        `[${session.meetingId}] is_final result with no alternatives — skipping`,
+      );
       return;
     }
 
     const best = alternatives[0];
     const transcript = best.transcript?.trim();
     if (!transcript) {
+      this.logger.debug(
+        `[${session.meetingId}] is_final result with empty transcript (confidence=${best.confidence ?? "n/a"}, words=${best.words?.length ?? 0}) — skipping`,
+      );
       return;
     }
 
@@ -276,6 +315,12 @@ export class DeepgramStreamingService {
       );
       if (inserted) {
         session.segmentCount += 1;
+      } else {
+        session.dropCount += 1;
+        const preview = transcript.slice(0, 80);
+        const msg = `dropped non-diarized segment after retries: "${preview}"`;
+        session.lastError = msg;
+        this.logger.error(`[${meetingId}] ${msg}`);
       }
       return;
     }
@@ -349,6 +394,12 @@ export class DeepgramStreamingService {
       );
       if (inserted) {
         session.segmentCount += segments.length;
+      } else {
+        session.dropCount += segments.length;
+        const preview = segments[0].text.slice(0, 80);
+        const msg = `dropped ${segments.length} diarized segments after retries (first: "${preview}")`;
+        session.lastError = msg;
+        this.logger.error(`[${meetingId}] ${msg}`);
       }
     }
   }
@@ -382,11 +433,21 @@ export class DeepgramStreamingService {
         this.logger.error(
           `Failed to re-open Deepgram session for ${meetingId}: ${message}`,
         );
-        return { ok: false, reason: "reopen_failed", message };
+        const recovered = this.activeSessions.get(sessionId);
+        return {
+          ok: false,
+          reason: "reopen_failed",
+          message,
+          health: recovered ? snapshotHealth(recovered) : { ...EMPTY_HEALTH, lastError: message },
+        };
       }
       session = this.activeSessions.get(sessionId);
       if (!session || session.ws.readyState !== WebSocket.OPEN) {
-        return { ok: false, reason: "session_not_open" };
+        return {
+          ok: false,
+          reason: "session_not_open",
+          health: session ? snapshotHealth(session) : EMPTY_HEALTH,
+        };
       }
     }
 
@@ -395,16 +456,25 @@ export class DeepgramStreamingService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`ws.send threw for ${meetingId}: ${message}`);
-      return { ok: false, reason: "send_failed", message };
+      session.lastError = message;
+      return {
+        ok: false,
+        reason: "send_failed",
+        message,
+        health: snapshotHealth(session),
+      };
     }
-    return { ok: true };
+    return { ok: true, health: snapshotHealth(session) };
   }
 
-  async stopSession(userId: string, meetingId: string): Promise<void> {
+  async stopSession(
+    userId: string,
+    meetingId: string,
+  ): Promise<SessionHealth> {
     const sessionId = `${userId}:${meetingId}`;
     const session = this.activeSessions.get(sessionId);
     if (!session) {
-      return;
+      return EMPTY_HEALTH;
     }
 
     try {
@@ -419,9 +489,11 @@ export class DeepgramStreamingService {
       // Connection may already be closed
     }
 
+    const health = snapshotHealth(session);
     this.activeSessions.delete(sessionId);
     this.logger.log(
-      `Deepgram session stopped for ${meetingId} (${session.segmentCount} segments)`,
+      `Deepgram session stopped for ${meetingId} (${health.segmentsInserted} segments, ${health.segmentsDropped} dropped)`,
     );
+    return health;
   }
 }

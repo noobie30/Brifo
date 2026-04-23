@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import brifoLogoMark from "./assets/brifo-logo-mark.png";
 import { ProtectedLayout } from "./components/ProtectedLayout";
+import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { DocumentDetailPage } from "./pages/DocumentDetailPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { HomePage } from "./pages/HomePage";
@@ -102,6 +103,7 @@ export function App() {
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/diagnostics" element={<DiagnosticsPage />} />
         <Route path="/meeting/:id" element={<MeetingPage />} />
         <Route path="/meeting/:id/review" element={<MeetingReviewPage />} />
       </Route>
