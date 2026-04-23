@@ -249,24 +249,6 @@ export function DiagnosticsPage() {
                 </StatusPill>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-fg-2">Screen Recording</span>
-                <StatusPill tone={permissionTone(permissions.screen)}>
-                  {permissions.screen}
-                </StatusPill>
-              </div>
-              {permissions.screen === "denied" && (
-                <p className="text-[11.5px] text-fg-muted leading-[1.5] -mt-0.5">
-                  If you&rsquo;ve granted permission in System Settings but
-                  still see &ldquo;denied&rdquo; here, duplicate entries from
-                  earlier Brifo builds are likely. Quit Brifo, run{" "}
-                  <code className="mono">
-                    tccutil reset ScreenCapture com.brifo.desktop
-                  </code>{" "}
-                  in Terminal, remove any remaining Brifo rows from the
-                  Privacy pane, then relaunch.
-                </p>
-              )}
-              <div className="flex items-center justify-between">
                 <span className="text-fg-2">Camera</span>
                 <StatusPill tone={permissionTone(permissions.camera)}>
                   {permissions.camera}
@@ -285,13 +267,6 @@ export function DiagnosticsPage() {
                   onClick={() => void window.electronAPI.openMicrophoneSettings()}
                 >
                   Open Microphone settings
-                </DButton>
-                <DButton
-                  onClick={() =>
-                    void window.electronAPI.openScreenRecordingSettings()
-                  }
-                >
-                  Open Screen Recording settings
                 </DButton>
               </div>
             </div>

@@ -94,13 +94,18 @@ export class TranscriptsController {
       file.buffer,
     );
     if (result.ok) {
-      return { accepted: true, health: result.health };
+      return {
+        accepted: true,
+        health: result.health,
+        segments: result.segments,
+      };
     }
     return {
       accepted: false,
       reason: result.reason,
       ...(result.message ? { message: result.message } : {}),
       health: result.health,
+      segments: result.segments,
     };
   }
 

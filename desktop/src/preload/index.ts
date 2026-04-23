@@ -98,6 +98,46 @@ const electronAPI = {
       ipcRenderer.removeListener(channel, listener);
     };
   },
+  // System audio capture via AudioTee (Core Audio Taps — macOS 14.2+).
+  // Uses the "System Audio Recording Only" permission class (same as
+  // Granola), not the broader Screen Recording pane. The Swift binary
+  // runs in the main process as a child; PCM chunks arrive here over IPC.
+  startSystemAudio: (opts?: {
+    sampleRate?: number;
+    chunkDurationMs?: number;
+  }): Promise<{ ok: boolean; alreadyRunning?: boolean; error?: string }> =>
+    ipcRenderer.invoke("system-audio:start", opts),
+  stopSystemAudio: (): Promise<{
+    ok: boolean;
+    alreadyStopped?: boolean;
+    error?: string;
+  }> => ipcRenderer.invoke("system-audio:stop"),
+  onSystemAudioData: (callback: (chunk: Uint8Array) => void) => {
+    const listener = (_event: unknown, data: Uint8Array | Buffer) => {
+      // Hand the renderer a plain Uint8Array so it can build a typed view
+      // without depending on Node's Buffer class (which isn't exposed under
+      // contextIsolation).
+      callback(data instanceof Uint8Array ? data : new Uint8Array(data));
+    };
+    ipcRenderer.on("system-audio:data", listener);
+    return () => {
+      ipcRenderer.removeListener("system-audio:data", listener);
+    };
+  },
+  onSystemAudioError: (callback: (message: string) => void) => {
+    const listener = (_event: unknown, message: string) => callback(message);
+    ipcRenderer.on("system-audio:error", listener);
+    return () => {
+      ipcRenderer.removeListener("system-audio:error", listener);
+    };
+  },
+  onSystemAudioEnded: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on("system-audio:ended", listener);
+    return () => {
+      ipcRenderer.removeListener("system-audio:ended", listener);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI);

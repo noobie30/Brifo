@@ -55,5 +55,17 @@ interface Window {
       callback: (payload: { sourceApp?: string; signalKey?: string }) => void,
     ) => () => void;
     onMeetingEnded: (callback: () => void) => () => void;
+    startSystemAudio: (opts?: {
+      sampleRate?: number;
+      chunkDurationMs?: number;
+    }) => Promise<{ ok: boolean; alreadyRunning?: boolean; error?: string }>;
+    stopSystemAudio: () => Promise<{
+      ok: boolean;
+      alreadyStopped?: boolean;
+      error?: string;
+    }>;
+    onSystemAudioData: (callback: (chunk: Uint8Array) => void) => () => void;
+    onSystemAudioError: (callback: (message: string) => void) => () => void;
+    onSystemAudioEnded: (callback: () => void) => () => void;
   };
 }

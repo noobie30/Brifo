@@ -238,11 +238,24 @@ export interface StreamSessionHealth {
   lastError: string | null;
 }
 
+export interface LiveTranscriptSegment {
+  speakerLabel: string;
+  text: string;
+  startMs: number;
+  endMs: number;
+}
+
 export interface SendStreamAudioResponse {
   accepted: boolean;
   reason?: string;
   message?: string;
   health?: StreamSessionHealth;
+  // Finalized transcript segments the backend produced since the last
+  // /transcript/stream/audio POST. Piggybacked onto this response so the
+  // renderer can render them live in the Quick Note text area without a
+  // separate endpoint or websocket. Deepgram is async — zero to many
+  // segments may appear per response.
+  segments?: LiveTranscriptSegment[];
 }
 
 export async function startTranscriptStream(meetingId: string) {

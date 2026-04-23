@@ -1922,6 +1922,120 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("auth:token:get", () => getSecureToken());
   ipcMain.handle("auth:token:clear", () => clearSecureToken());
+  // ──────────────────────────────────────────────────────────────────────
+  // System audio capture via AudioTee (Core Audio Taps, macOS 14.2+)
+  //
+  // Replaces Electron's desktopCapturer path which required full Screen
+  // Recording permission. AudioTee only needs "System Audio Recording
+  // Only" (the separate macOS 15 pane), so Brifo now appears there — same
+  // permission class as Granola. AudioTee spawns a small bundled Swift
+  // binary as a child process and streams raw PCM on stdout. We forward
+  // those chunks to the renderer via IPC; the renderer mixes them with
+  // the mic PCM and sends the combined stream to Deepgram.
+  //
+  // AudioTee is ESM-only; this file is compiled to CommonJS by tsc. We
+  // use dynamic import so the ESM wrapper loads lazily when the user
+  // first starts a capture.
+  // ──────────────────────────────────────────────────────────────────────
+  type AudioTeeInstance = {
+    start: () => Promise<void>;
+    stop: () => Promise<void>;
+    on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  };
+  let audioTee: AudioTeeInstance | null = null;
+
+  // Resolve the AudioTee Swift binary. In dev it lives at
+  // node_modules/audiotee/bin/audiotee and audiotee's default resolver
+  // finds it automatically. In the packaged .app the JS wrapper is
+  // inside app.asar but executables can't be spawned from inside an
+  // archive — electron-builder's `extraResources` copies the binary to
+  // Contents/Resources/audiotee/audiotee, which we pass explicitly.
+  const resolveAudioTeeBinaryPath = (): string | undefined => {
+    if (!app.isPackaged) return undefined;
+    return path.join(process.resourcesPath, "audiotee", "audiotee");
+  };
+
+  ipcMain.handle(
+    "system-audio:start",
+    async (_event, opts?: { sampleRate?: number; chunkDurationMs?: number }) => {
+      if (audioTee) {
+        return { ok: true, alreadyRunning: true };
+      }
+      try {
+        // TypeScript with module: "CommonJS" would compile
+        // `await import("audiotee")` into `require("audiotee")`, which
+        // throws at runtime because audiotee is an ESM package. Wrapping
+        // the import in a `Function` constructor hides it from tsc's
+        // module transform — the literal `import(...)` stays in the
+        // emitted JS and Node's CommonJS loader handles the ESM interop.
+        const dynamicImport = new Function(
+          "specifier",
+          "return import(specifier)",
+        ) as (specifier: string) => Promise<{
+          AudioTee: new (options?: {
+            sampleRate?: number;
+            chunkDurationMs?: number;
+            binaryPath?: string;
+          }) => AudioTeeInstance;
+        }>;
+        const { AudioTee } = await dynamicImport("audiotee");
+        const tee = new AudioTee({
+          sampleRate: opts?.sampleRate ?? 16000,
+          chunkDurationMs: opts?.chunkDurationMs ?? 250,
+          binaryPath: resolveAudioTeeBinaryPath(),
+        });
+        tee.on("data", (chunk: unknown) => {
+          const data = (chunk as { data?: Buffer })?.data;
+          if (!data || !(data instanceof Buffer)) {
+            return;
+          }
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("system-audio:data", data);
+          }
+        });
+        tee.on("error", (err: unknown) => {
+          const msg =
+            err instanceof Error ? err.message : String(err ?? "unknown");
+          console.warn("[brifo][audiotee] error:", msg);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("system-audio:error", msg);
+          }
+        });
+        tee.on("stop", () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("system-audio:ended");
+          }
+        });
+        await tee.start();
+        audioTee = tee;
+        return { ok: true };
+      } catch (error) {
+        const msg =
+          error instanceof Error ? error.message : String(error ?? "unknown");
+        console.error("[brifo][audiotee] start failed:", msg);
+        audioTee = null;
+        return { ok: false, error: msg };
+      }
+    },
+  );
+
+  ipcMain.handle("system-audio:stop", async () => {
+    if (!audioTee) {
+      return { ok: true, alreadyStopped: true };
+    }
+    const tee = audioTee;
+    audioTee = null;
+    try {
+      await tee.stop();
+      return { ok: true };
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : String(error ?? "unknown");
+      console.warn("[brifo][audiotee] stop failed:", msg);
+      return { ok: false, error: msg };
+    }
+  });
+
   ipcMain.on(
     "capture:status",
     (

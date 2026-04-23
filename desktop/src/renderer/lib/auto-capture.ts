@@ -1,5 +1,6 @@
 import {
   ApiError,
+  LiveTranscriptSegment,
   sendStreamAudio,
   startMeeting,
   startTranscriptStream,
@@ -144,6 +145,47 @@ let streamStats: StreamStats = {
   systemAudioReason: null,
 };
 const streamStatsListeners = new Set<(stats: StreamStats) => void>();
+
+// ── Live transcript (surfaced to Quick Note text area while recording) ─
+// Deepgram is asynchronous — between our 250 ms audio posts it may emit
+// zero, one, or several finalized segments. The backend drains them on
+// each /transcript/stream/audio response; we accumulate the history here
+// and notify subscribers so the UI can render them live.
+export type LiveTranscript = ReadonlyArray<LiveTranscriptSegment>;
+let liveTranscript: LiveTranscriptSegment[] = [];
+const liveTranscriptListeners = new Set<(transcript: LiveTranscript) => void>();
+
+export function getLiveTranscript(): LiveTranscript {
+  return liveTranscript;
+}
+
+export function subscribeLiveTranscript(
+  listener: (transcript: LiveTranscript) => void,
+): () => void {
+  liveTranscriptListeners.add(listener);
+  listener(liveTranscript);
+  return () => {
+    liveTranscriptListeners.delete(listener);
+  };
+}
+
+function emitLiveTranscript() {
+  for (const listener of liveTranscriptListeners) {
+    try {
+      listener(liveTranscript);
+    } catch (error) {
+      console.error(
+        "[brifo][auto-capture] live transcript listener threw:",
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+}
+
+function resetLiveTranscript() {
+  liveTranscript = [];
+  emitLiveTranscript();
+}
 
 export function getStreamStats(): StreamStats {
   return streamStats;
@@ -308,6 +350,10 @@ function isPermissionRelated(message: string): boolean {
 
 function buildCaptureStartError(micError: unknown): Error {
   const micMessage = getErrorMessage(micError).toLowerCase();
+  const errorName =
+    micError && typeof micError === "object" && "name" in micError
+      ? String((micError as { name?: unknown }).name ?? "")
+      : "";
 
   if (isPermissionRelated(micMessage)) {
     return new PermissionError(
@@ -324,15 +370,47 @@ function buildCaptureStartError(micError: unknown): Error {
     );
   }
 
+  // NotReadableError = the mic hardware is busy — typically another macOS app
+  // (Claude desktop, Notra, Zoom, another Chrome tab, etc.) is holding an
+  // exclusive audio stream. Tell the user concretely instead of the generic
+  // "check permissions" message, which permissions aren't the problem.
+  if (errorName === "NotReadableError" || micMessage.includes("could not start audio source")) {
+    return new Error(
+      "Another app is using your microphone. Quit other recording apps (Claude, Notra, Zoom, Meet tabs) and try again.",
+    );
+  }
+
+  if (errorName === "NotFoundError") {
+    return new Error(
+      "No microphone found. Plug in or enable an input device in System Settings → Sound and try again.",
+    );
+  }
+
+  if (errorName === "OverconstrainedError") {
+    return new Error(
+      "Your microphone rejected the audio settings. Brifo will retry with simpler settings — try again.",
+    );
+  }
+
+  // Fallback — surface the DOMException name so the exact cause is visible
+  // without needing devtools. Previously this was a generic string that
+  // discarded the one piece of info that would name the root cause.
+  const suffix = errorName ? ` (${errorName})` : "";
   return new Error(
-    "Unable to start capturing. Check microphone permissions and try again.",
+    `Unable to start capturing${suffix}. Check microphone permissions and that no other app is using the mic, then try again.`,
   );
 }
 
 async function ensureMicrophonePermission(): Promise<void> {
-  // First, try to trigger the native macOS permission dialog via the main process.
-  // This helps register the app in System Settings, but the renderer (Chromium)
-  // ultimately handles getUserMedia permissions separately.
+  // Trigger the native macOS permission dialog via the main process. The
+  // real getUserMedia call in getMixedAudioStreams below will then either
+  // succeed (grant persists) or surface the specific DOMException.
+  //
+  // We intentionally DO NOT do a second "test" getUserMedia here like we
+  // used to — on macOS that double-acquire sometimes strands the audio
+  // device in a half-released state, and the real call then fails with
+  // NotReadableError even though permissions are fine. One acquisition is
+  // enough.
   try {
     const permissions = await window.electronAPI.checkPermissions();
     if (permissions.microphone === "not-determined") {
@@ -340,24 +418,6 @@ async function ensureMicrophonePermission(): Promise<void> {
     }
   } catch {
     // electronAPI may be unavailable in non-Electron environments
-  }
-
-  // The real permission check: attempt a quick getUserMedia call.
-  // This is what actually triggers the macOS native prompt for the renderer
-  // and registers the app in System Settings > Microphone.
-  try {
-    const testStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-    });
-    testStream.getTracks().forEach((track) => track.stop());
-  } catch (error) {
-    const message = getErrorMessage(error).toLowerCase();
-    if (isPermissionRelated(message)) {
-      throw new PermissionError(
-        "Microphone access is required. Please grant Brifo microphone permission in System Settings and try again.",
-      );
-    }
-    // For non-permission errors (e.g. no mic hardware), let getMixedAudioStreams handle it
   }
 }
 
@@ -437,38 +497,121 @@ function setupSilenceDetection(stream: MediaStream) {
   }, SILENCE_SAMPLE_MS);
 }
 
-async function captureSystemAudio(sourceId: string): Promise<MediaStream> {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        // @ts-expect-error — Electron-specific chromeMediaSource constraint
-        mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId },
-      },
-      video: {
-        // @ts-expect-error — video must be specified alongside audio for desktopCapturer streams
-        mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId },
-      },
-    });
-    stream.getVideoTracks().forEach((t) => t.stop());
-    return stream;
-  } catch (error) {
-    console.error(
-      "[brifo][auto-capture] captureSystemAudio failed:",
-      error instanceof Error ? error.message : error,
-    );
-    // Re-throw so getMixedAudioStreams can record the specific error name
-    // (NotAllowedError / NotFoundError / NotReadableError) into streamStats
-    // instead of showing a generic "unavailable" with no cause.
-    throw error;
-  }
-}
-
 // Read the user's system-audio preference. Default ON when unset so first-run
-// captures include others' voices by default; Screen Recording permission
-// still gates the actual capture, and if denied we fall back to mic-only.
+// captures include others' voices by default. The actual capture uses
+// AudioTee (Core Audio Taps, macOS 14.2+) which requires the separate
+// "System Audio Recording Only" permission — distinct from Screen Recording.
 function isSystemAudioEnabled(): boolean {
   const preference = localStorage.getItem("brifo_system_audio_enabled");
   return preference === null ? true : preference === "true";
+}
+
+// AudioTee (Core Audio Taps) emits interleaved mono Float32 PCM at the sample
+// rate we request. Convert to the Int16 format Deepgram ingests and append to
+// the shared system-audio buffer so setupPcmStreaming can mix it with mic PCM.
+const SYS_AUDIO_SAMPLE_RATE = 16000;
+let sysAudioBuffer: Int16Array[] = [];
+let sysAudioDataUnsubscribe: (() => void) | null = null;
+let sysAudioErrorUnsubscribe: (() => void) | null = null;
+let sysAudioEndedUnsubscribe: (() => void) | null = null;
+
+function ingestSystemAudioChunk(chunk: Uint8Array) {
+  // AudioTee's default stdout format is 32-bit float mono at the requested
+  // sample rate. The chunk's byteLength must be a multiple of 4 (one float
+  // per sample). Anything else means a protocol mismatch — drop and log.
+  if (chunk.byteLength === 0 || chunk.byteLength % 4 !== 0) {
+    console.warn(
+      "[brifo][auto-capture] Unexpected system-audio chunk size:",
+      chunk.byteLength,
+    );
+    return;
+  }
+  const float = new Float32Array(
+    chunk.buffer,
+    chunk.byteOffset,
+    chunk.byteLength / 4,
+  );
+  const int16 = new Int16Array(float.length);
+  for (let i = 0; i < float.length; i += 1) {
+    const clamped = Math.max(-1, Math.min(1, float[i] ?? 0));
+    int16[i] = Math.round(clamped * 32767);
+  }
+  sysAudioBuffer.push(int16);
+}
+
+async function startSystemAudioCapture(): Promise<{
+  status: SystemAudioStatus;
+  reason: string | null;
+}> {
+  if (!window.electronAPI?.startSystemAudio) {
+    return {
+      status: "unavailable",
+      reason: "Brifo was built without system-audio support.",
+    };
+  }
+
+  sysAudioBuffer = [];
+  sysAudioDataUnsubscribe?.();
+  sysAudioDataUnsubscribe = window.electronAPI.onSystemAudioData(
+    ingestSystemAudioChunk,
+  );
+  sysAudioErrorUnsubscribe?.();
+  sysAudioErrorUnsubscribe = window.electronAPI.onSystemAudioError((msg) => {
+    console.warn("[brifo][auto-capture] system audio error:", msg);
+    if (activeState && activeState.systemAudioStatus === "active") {
+      activeState = { ...activeState, systemAudioStatus: "unavailable" };
+      emitState();
+      streamStats = {
+        ...streamStats,
+        systemAudioReason: msg,
+      };
+      emitStreamStats();
+    }
+  });
+  sysAudioEndedUnsubscribe?.();
+  sysAudioEndedUnsubscribe = window.electronAPI.onSystemAudioEnded(() => {
+    if (activeState && activeState.systemAudioStatus === "active") {
+      activeState = { ...activeState, systemAudioStatus: "unavailable" };
+      emitState();
+    }
+  });
+
+  const result = await window.electronAPI.startSystemAudio({
+    sampleRate: SYS_AUDIO_SAMPLE_RATE,
+    chunkDurationMs: 250,
+  });
+
+  if (!result.ok) {
+    stopSystemAudioSubscriptions();
+    return {
+      status: "unavailable",
+      reason: result.error || "AudioTee failed to start.",
+    };
+  }
+
+  return { status: "active", reason: null };
+}
+
+function stopSystemAudioSubscriptions() {
+  sysAudioDataUnsubscribe?.();
+  sysAudioDataUnsubscribe = null;
+  sysAudioErrorUnsubscribe?.();
+  sysAudioErrorUnsubscribe = null;
+  sysAudioEndedUnsubscribe?.();
+  sysAudioEndedUnsubscribe = null;
+}
+
+async function stopSystemAudioCapture(): Promise<void> {
+  stopSystemAudioSubscriptions();
+  sysAudioBuffer = [];
+  try {
+    await window.electronAPI?.stopSystemAudio?.();
+  } catch (error) {
+    console.warn(
+      "[brifo][auto-capture] stopSystemAudio failed:",
+      error instanceof Error ? error.message : error,
+    );
+  }
 }
 
 interface MixedAudioResult {
@@ -480,24 +623,51 @@ interface MixedAudioResult {
 async function getMixedAudioStreams(): Promise<MixedAudioResult> {
   await ensureMicrophonePermission();
 
+  // Defensive cleanup: if a previous capture attempt left a micStream
+  // around (e.g. React StrictMode double-init, crash between start/stop),
+  // release it before asking for a fresh one. macOS can otherwise return
+  // NotReadableError because the old track still owns the device.
+  stopAllTracks(micStream);
+  micStream = null;
+
+  const primaryConstraints: MediaStreamConstraints = {
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+    },
+  };
   try {
-    micStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-      },
-    });
+    micStream = await navigator.mediaDevices.getUserMedia(primaryConstraints);
   } catch (error) {
-    micStream = null;
-    throw buildCaptureStartError(error);
+    const anyErr = error as { name?: string };
+
+    // OverconstrainedError: the mic driver rejected our echoCancellation /
+    // noiseSuppression combo. Retry once with plain { audio: true } which
+    // every driver accepts.
+    if (anyErr?.name === "OverconstrainedError") {
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (retryError) {
+        micStream = null;
+        throw buildCaptureStartError(retryError);
+      }
+    } else {
+      micStream = null;
+      throw buildCaptureStartError(error);
+    }
   }
 
   if (!micStream || !micStream.getAudioTracks().length) {
     throw buildCaptureStartError(new Error("No microphone track available."));
   }
 
-  // Route mic through an AudioContext so silence detection and PCM streaming
-  // share one consistent MediaStream. System audio is mixed in when enabled.
+  // Route mic through an AudioContext so silence detection and PCM
+  // streaming share one consistent MediaStream. System audio (others'
+  // voices) is no longer mixed here — it flows in via the AudioTee IPC
+  // bridge and is combined with mic PCM inside setupPcmStreaming's
+  // periodic flush. This avoids the Screen Recording permission class
+  // entirely and puts Brifo in the "System Audio Recording Only" pane,
+  // same privacy class as Granola.
   audioContext = new AudioContext();
   const destination = audioContext.createMediaStreamDestination();
   const micSource = audioContext.createMediaStreamSource(
@@ -505,66 +675,12 @@ async function getMixedAudioStreams(): Promise<MixedAudioResult> {
   );
   micSource.connect(destination);
 
-  // Mix in system audio (others' voices) if the user enabled it.
   let systemAudioStatus: SystemAudioStatus = "disabled";
   let systemAudioReason: string | null = null;
   if (isSystemAudioEnabled()) {
-    // Assume unavailable unless we successfully connect a track below.
-    systemAudioStatus = "unavailable";
-    try {
-      const sourceId = await window.electronAPI.getScreenCaptureSourceId();
-      if (!sourceId) {
-        systemAudioReason =
-          "No screen capture source — Screen Recording permission likely denied.";
-        console.warn(
-          "[brifo][auto-capture] System audio unavailable: no screen capture source (Screen Recording permission denied?).",
-        );
-      } else {
-        const systemStream = await captureSystemAudio(sourceId);
-        const systemAudioTrack = systemStream.getAudioTracks()[0];
-        if (systemAudioTrack) {
-          const systemSource =
-            audioContext.createMediaStreamSource(systemStream);
-          systemSource.connect(destination);
-          systemAudioStatus = "active";
-          // If macOS revokes Screen Recording permission mid-capture, or the
-          // OS otherwise tears down this track, mark systemAudioStatus
-          // "unavailable" so SystemAudioWarningBanner can show — silent loss
-          // of others' voices is the worst failure mode here.
-          systemAudioTrack.addEventListener("ended", () => {
-            if (activeState && activeState.systemAudioStatus === "active") {
-              console.warn(
-                "[brifo][auto-capture] System audio track ended mid-capture (Screen Recording permission revoked?).",
-              );
-              activeState = {
-                ...activeState,
-                systemAudioStatus: "unavailable",
-              };
-              emitState();
-            }
-          });
-        } else {
-          systemAudioReason =
-            "System audio source returned no audio track.";
-          console.warn(
-            "[brifo][auto-capture] System audio unavailable: getUserMedia returned no audio track.",
-          );
-        }
-      }
-    } catch (error) {
-      // Surface the specific DOMException name so users can tell
-      // NotAllowedError (permission) from NotFoundError (no source) from
-      // NotReadableError (device busy). Previously all these collapsed to
-      // a generic "unavailable" and the user had no way to act on it.
-      systemAudioReason =
-        error instanceof Error
-          ? `${error.name}: ${error.message}`
-          : String(error);
-      console.error(
-        "[brifo][auto-capture] System audio setup threw:",
-        error instanceof Error ? error.message : error,
-      );
-    }
+    const result = await startSystemAudioCapture();
+    systemAudioStatus = result.status;
+    systemAudioReason = result.reason;
   }
 
   const stream = destination.stream.getAudioTracks().length
@@ -703,6 +819,7 @@ export async function startAutoCapture(input: StartCaptureInput) {
     lastReconnectAttemptAt = 0;
     totalBytesStreamed = 0;
     resetStreamStats();
+    resetLiveTranscript();
     if (systemAudioReason) {
       streamStats = { ...streamStats, systemAudioReason };
       emitStreamStats();
@@ -754,19 +871,53 @@ function setupPcmStreaming(stream: MediaStream) {
   // Connect to destination to keep the processor alive (won't produce audible output)
   scriptProcessorNode.connect(audioContext.destination);
 
-  // Periodically flush PCM buffer to backend
+  // Periodically flush PCM buffer to backend. Mic PCM comes from the
+  // ScriptProcessorNode above (16 kHz Int16 mono). System-audio PCM
+  // arrives via IPC from AudioTee at the same sample rate and is
+  // buffered in sysAudioBuffer. We mix them by element-wise add + clamp
+  // into a single Int16 stream before sending — Deepgram sees one mixed
+  // mono track containing both the user and other participants.
   pcmStreamTimer = window.setInterval(() => {
-    if (!pcmBuffer.length || !activeState) {
+    if ((!pcmBuffer.length && !sysAudioBuffer.length) || !activeState) {
       return;
     }
-    const totalLength = pcmBuffer.reduce((sum, buf) => sum + buf.length, 0);
-    const merged = new Int16Array(totalLength);
-    let offset = 0;
+    const micTotal = pcmBuffer.reduce((sum, buf) => sum + buf.length, 0);
+    const micFlat = new Int16Array(micTotal);
+    let micOffset = 0;
     for (const buf of pcmBuffer) {
-      merged.set(buf, offset);
-      offset += buf.length;
+      micFlat.set(buf, micOffset);
+      micOffset += buf.length;
     }
     pcmBuffer = [];
+
+    const sysTotal = sysAudioBuffer.reduce((sum, buf) => sum + buf.length, 0);
+    const sysFlat = new Int16Array(sysTotal);
+    let sysOffset = 0;
+    for (const buf of sysAudioBuffer) {
+      sysFlat.set(buf, sysOffset);
+      sysOffset += buf.length;
+    }
+    sysAudioBuffer = [];
+
+    // Take the shorter length as the mix window; whatever's left over in
+    // the longer buffer we tack on un-mixed so no audio is dropped. Mic
+    // track (user's voice) and system track (others' voices) never share
+    // content — speakers don't play back the mic — so a straight additive
+    // mix has no risk of double-counting.
+    const mixLen = Math.min(micFlat.length, sysFlat.length);
+    const tailLen = Math.max(micFlat.length, sysFlat.length) - mixLen;
+    const totalLength = mixLen + tailLen;
+    const merged = new Int16Array(totalLength);
+    for (let i = 0; i < mixLen; i += 1) {
+      const summed = (micFlat[i] ?? 0) + (sysFlat[i] ?? 0);
+      merged[i] = Math.max(-32768, Math.min(32767, summed));
+    }
+    if (tailLen > 0) {
+      const tailSrc = micFlat.length > sysFlat.length ? micFlat : sysFlat;
+      for (let i = 0; i < tailLen; i += 1) {
+        merged[mixLen + i] = tailSrc[mixLen + i] ?? 0;
+      }
+    }
 
     const blob = new Blob([merged.buffer], {
       type: "application/octet-stream",
@@ -778,6 +929,15 @@ function setupPcmStreaming(stream: MediaStream) {
         consecutiveReconnectFailures = 0;
         totalBytesStreamed += merged.byteLength;
         const health = response?.health;
+        // Append any finalized segments Deepgram produced since the last
+        // send. The backend drains its per-session buffer on every
+        // response, so `response.segments` is at most a handful of rows.
+        // We append and emit; QuickNotePage renders them live under the
+        // notes textarea.
+        if (response?.segments?.length) {
+          liveTranscript = [...liveTranscript, ...response.segments];
+          emitLiveTranscript();
+        }
         // The backend may report accepted=false with a session-recycle reason
         // even on HTTP 200. Surface that without flipping into the catch
         // branch — the renderer keeps sending and the backend transparently
@@ -928,6 +1088,15 @@ export async function stopAutoCapture(reason: StopReason = "manual") {
       scriptProcessorNode = null;
     }
     pcmBuffer = [];
+
+    // Step 2b: stop the AudioTee Swift subprocess and clear its PCM buffer.
+    // Must happen before stopAllTracks so no new system-audio chunks arrive
+    // into a half-torn-down state.
+    try {
+      await stopSystemAudioCapture();
+    } catch {
+      // ignore
+    }
 
     // Step 3: tell the backend to close the Deepgram session
     if (streamingActive) {

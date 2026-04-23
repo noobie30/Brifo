@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   connectJiraIntegration,
   disconnectJiraIntegration,
@@ -465,14 +464,6 @@ export function SettingsPage() {
                 {s.label}
               </button>
             ))}
-            <div className="mt-4 pt-3 border-t border-line">
-              <Link
-                to="/diagnostics"
-                className="flex items-center gap-2 h-8 px-2.5 rounded-[7px] text-[12.5px] text-left text-fg-muted hover:text-fg cursor-pointer no-underline"
-              >
-                Mic isn't working? → Diagnostics
-              </Link>
-            </div>
           </nav>
 
           {/* Content */}

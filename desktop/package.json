@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@brifo/shared": "0.1.0",
+    "audiotee": "^0.0.7",
     "axios": "^1.7.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -61,6 +62,15 @@
       "dist-electron/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "../node_modules/audiotee/bin",
+        "to": "audiotee",
+        "filter": [
+          "audiotee"
+        ]
+      }
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "build/icon.icns",
@@ -73,11 +83,13 @@
       "artifactName": "${productName}-${version}-${arch}.${ext}",
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Brifo needs your microphone to listen during meetings and turn the audio into notes. Transcription runs on Brifo's server; raw audio is not stored.",
-        "NSScreenCaptureUsageDescription": "Brifo uses Screen Recording to capture meeting audio from other participants. Your screen is never recorded or stored.",
+        "NSAudioCaptureUsageDescription": "Brifo captures system audio so other participants in your meeting are transcribed alongside your voice. Your screen is never recorded.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "Brifo Auth Callback",
-            "CFBundleURLSchemes": ["brifo"]
+            "CFBundleURLSchemes": [
+              "brifo"
+            ]
           }
         ]
       }

@@ -2,13 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   AutoCaptureState,
+  LiveTranscript,
   PermissionError,
   StreamStats,
   getAutoCaptureState,
+  getLiveTranscript,
   getStreamStats,
   startAutoCapture,
   stopAutoCapture,
   subscribeAutoCapture,
+  subscribeLiveTranscript,
   subscribeStreamStats,
 } from "../lib/auto-capture";
 import { generateNotes, getMeeting } from "../lib/api";
@@ -76,14 +79,30 @@ function formatStreamHealth(
     capture.systemAudioStatus === "active" ? "mic + system" : "mic only";
   if (stats.consecutiveReconnects > 0) {
     return {
-      text: `${sourceLabel} — reconnecting (${stats.consecutiveReconnects})`,
+      text: `${sourceLabel} — reconnecting…`,
       tone: "warn",
     };
   }
-  if (stats.consecutiveFailures > 3) {
+  // Thresholds were too aggressive: ">3 consecutive failures" raised a
+  // scary red "stream errors" banner after < 1 second of blips, even
+  // though the auto-capture loop tolerates up to MAX_STREAM_FAILURES=120
+  // (30 s) before actually giving up. Match the UI tone to the real
+  // failure window so users don't panic over transient Vercel cold-start
+  // or network hiccups that self-heal within a few seconds.
+  if (stats.consecutiveFailures > 60) {
+    // 60 × 250 ms ≈ 15 s of continuous failures — something's actually
+    // wrong. Half the way to the hard cutoff.
     return {
       text: `${sourceLabel} — stream errors (${stats.consecutiveFailures})`,
       tone: "error",
+    };
+  }
+  if (stats.consecutiveFailures > 8) {
+    // 8 × 250 ms ≈ 2 s. Show a soft "buffering…" message so the user
+    // knows something's happening, without the red alarm.
+    return {
+      text: `${sourceLabel} — buffering…`,
+      tone: "warn",
     };
   }
   if (stats.bytesStreamed === 0) {
@@ -113,6 +132,77 @@ function formatStreamHealth(
   };
 }
 
+function LiveTranscriptPanel({ segments }: { segments: LiveTranscript }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll to the newest segment as they arrive. User can scroll up
+  // to read — we only jump to bottom when the view was already near the
+  // end, so mid-read scrolling isn't yanked away.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (nearBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [segments]);
+
+  return (
+    <div
+      className="flex-[1_1_0%] min-h-[140px] mt-3 rounded-md flex flex-col overflow-hidden"
+      style={{
+        border: "1px solid var(--color-divider)",
+        background: "var(--color-subtle)",
+      }}
+    >
+      <div
+        className="flex items-center gap-2 px-3 py-2 text-[11px] font-medium tracking-wide uppercase"
+        style={{
+          color: "var(--color-fg-muted)",
+          borderBottom: "1px solid var(--color-divider)",
+        }}
+      >
+        <span
+          className="inline-block rounded-full animate-pulse"
+          style={{
+            width: 6,
+            height: 6,
+            background: "var(--color-danger)",
+          }}
+        />
+        Live transcript
+      </div>
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-3 py-2 text-[13px] leading-[1.6]"
+        style={{ color: "var(--color-fg-2)" }}
+      >
+        {segments.map((seg, idx) => {
+          // Only show a speaker label when it's meaningful — the
+          // first-word non-diarized fallback is always "Speaker A",
+          // which adds visual noise to single-speaker Quick Notes.
+          const showSpeaker =
+            idx === 0 || seg.speakerLabel !== segments[idx - 1]?.speakerLabel;
+          return (
+            <p key={idx} className="m-0 mb-1">
+              {showSpeaker && (
+                <span
+                  className="font-medium mr-1.5"
+                  style={{ color: "var(--color-fg)" }}
+                >
+                  {seg.speakerLabel}:
+                </span>
+              )}
+              {seg.text}
+            </p>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function QuickNotePage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -129,6 +219,9 @@ export function QuickNotePage() {
   );
   const [streamStats, setStreamStats] = useState<StreamStats>(
     () => getStreamStats(),
+  );
+  const [liveTranscript, setLiveTranscript] = useState<LiveTranscript>(
+    () => getLiveTranscript(),
   );
   const [error, setError] = useState<string | null>(null);
   const [isPermissionError, setIsPermissionError] = useState(false);
@@ -161,6 +254,7 @@ export function QuickNotePage() {
 
   useEffect(() => subscribeAutoCapture(setCaptureState), []);
   useEffect(() => subscribeStreamStats(setStreamStats), []);
+  useEffect(() => subscribeLiveTranscript(setLiveTranscript), []);
 
   useEffect(() => {
     if (finalizePhase === "idle") {
@@ -403,6 +497,12 @@ export function QuickNotePage() {
                 : health.tone === "warn"
                   ? "var(--color-warning, var(--color-danger))"
                   : "var(--color-danger)";
+            // Happy-path (tone="normal") only shows the pulse + "Recording"
+            // — the technical "mic + system — 7.8 KB sent" stats belong in
+            // Diagnostics, not the note header. Warn/error states still
+            // append the reason so users know when something is actually
+            // wrong (buffering, reconnecting, stream errors).
+            const showDetails = health.tone !== "normal";
             return (
               <span
                 className="inline-flex items-center gap-2 text-[11.5px]"
@@ -416,7 +516,7 @@ export function QuickNotePage() {
                     background: colorVar,
                   }}
                 />
-                Recording — {health.text}
+                {showDetails ? `Recording — ${health.text}` : "Recording"}
               </span>
             );
           })()}
@@ -468,14 +568,21 @@ export function QuickNotePage() {
           </DButton>
         </div>
 
-        <div className="relative flex-1 min-h-0">
+        <div className="relative flex-1 min-h-0 flex flex-col">
           <textarea
-            className="h-full w-full resize-none border-none focus:outline-none text-[15px] leading-[1.7] text-fg placeholder:text-fg-subtle bg-transparent"
+            className={`${
+              captureState && liveTranscript.length > 0
+                ? "flex-[1_1_0%] min-h-[140px]"
+                : "flex-1"
+            } w-full resize-none border-none focus:outline-none text-[15px] leading-[1.7] text-fg placeholder:text-fg-subtle bg-transparent`}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             placeholder="Write notes, or press Start recording and let Brifo listen."
             rows={16}
           />
+          {captureState && liveTranscript.length > 0 && (
+            <LiveTranscriptPanel segments={liveTranscript} />
+          )}
           {finalizePhase !== "idle" && (
             <div
               className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg"

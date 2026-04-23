@@ -48,6 +48,18 @@ interface StreamingSession {
   // with the wall-clock meeting start. Non-zero when this session was
   // re-opened mid-meeting after a Vercel instance recycle.
   timeOffsetMs: number;
+  // New segments produced by Deepgram since the last drain. Flushed out
+  // on every /transcript/stream/audio response so the renderer can show
+  // a live transcript in the Quick Note text area without any new
+  // endpoint or polling.
+  pendingLive: LiveSegment[];
+}
+
+export interface LiveSegment {
+  speakerLabel: string;
+  text: string;
+  startMs: number;
+  endMs: number;
 }
 
 export interface SessionHealth {
@@ -57,12 +69,13 @@ export interface SessionHealth {
 }
 
 export type SendAudioResult =
-  | { ok: true; health: SessionHealth }
+  | { ok: true; health: SessionHealth; segments: LiveSegment[] }
   | {
       ok: false;
       reason: "reopen_failed" | "session_not_open" | "send_failed";
       message?: string;
       health: SessionHealth;
+      segments: LiveSegment[];
     };
 
 const EMPTY_HEALTH: SessionHealth = {
@@ -205,6 +218,7 @@ export class DeepgramStreamingService {
       dropCount: 0,
       lastError: null,
       timeOffsetMs,
+      pendingLive: [],
     };
 
     if (timeOffsetMs > 0) {
@@ -301,6 +315,10 @@ export class DeepgramStreamingService {
     const { meetingId, userId, timeOffsetMs } = session;
 
     if (!words.length) {
+      const startMs = Math.round((data.start ?? 0) * 1000) + timeOffsetMs;
+      const endMs =
+        Math.round(((data.start ?? 0) + (data.duration ?? 0)) * 1000) +
+        timeOffsetMs;
       const inserted = await this.retryWrite(
         () =>
           this.transcriptModel.create({
@@ -308,10 +326,8 @@ export class DeepgramStreamingService {
             userId,
             speakerLabel: "Speaker A",
             speakerRole: "unknown",
-            startMs: Math.round((data.start ?? 0) * 1000) + timeOffsetMs,
-            endMs:
-              Math.round(((data.start ?? 0) + (data.duration ?? 0)) * 1000) +
-              timeOffsetMs,
+            startMs,
+            endMs,
             text: transcript,
             confidence: best.confidence ?? undefined,
             captureSource: "auto",
@@ -320,6 +336,12 @@ export class DeepgramStreamingService {
       );
       if (inserted) {
         session.segmentCount += 1;
+        session.pendingLive.push({
+          speakerLabel: "Speaker A",
+          text: transcript,
+          startMs,
+          endMs,
+        });
       } else {
         session.dropCount += 1;
         const preview = transcript.slice(0, 80);
@@ -399,6 +421,14 @@ export class DeepgramStreamingService {
       );
       if (inserted) {
         session.segmentCount += segments.length;
+        for (const seg of segments) {
+          session.pendingLive.push({
+            speakerLabel: seg.speaker,
+            text: seg.text,
+            startMs: seg.startMs,
+            endMs: seg.endMs,
+          });
+        }
       } else {
         session.dropCount += segments.length;
         const preview = segments[0].text.slice(0, 80);
@@ -444,6 +474,7 @@ export class DeepgramStreamingService {
           reason: "reopen_failed",
           message,
           health: recovered ? snapshotHealth(recovered) : { ...EMPTY_HEALTH, lastError: message },
+          segments: [],
         };
       }
       session = this.activeSessions.get(sessionId);
@@ -452,6 +483,7 @@ export class DeepgramStreamingService {
           ok: false,
           reason: "session_not_open",
           health: session ? snapshotHealth(session) : EMPTY_HEALTH,
+          segments: [],
         };
       }
     }
@@ -462,14 +494,27 @@ export class DeepgramStreamingService {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`ws.send threw for ${meetingId}: ${message}`);
       session.lastError = message;
+      // Drain any segments Deepgram already produced before the send
+      // failure, so the renderer doesn't miss them on the way to the
+      // reconnect path.
+      const drained = session.pendingLive;
+      session.pendingLive = [];
       return {
         ok: false,
         reason: "send_failed",
         message,
         health: snapshotHealth(session),
+        segments: drained,
       };
     }
-    return { ok: true, health: snapshotHealth(session) };
+    // Drain whatever finalized segments have accumulated since the last
+    // send. Deepgram is asynchronous — it may have emitted several
+    // is_final messages between our 250 ms audio posts. Handing them
+    // back in this response lets the renderer stream them to the UI
+    // without any new endpoint or websocket.
+    const drained = session.pendingLive;
+    session.pendingLive = [];
+    return { ok: true, health: snapshotHealth(session), segments: drained };
   }
 
   async stopSession(
