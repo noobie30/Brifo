@@ -1,7 +1,7 @@
 {
   "name": "brifo",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Brifo monorepo: bot-free AI meeting workspace for Mac",
   "workspaces": [
     "backend",
