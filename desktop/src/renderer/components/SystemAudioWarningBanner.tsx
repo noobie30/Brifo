@@ -1,18 +1,23 @@
 import { useEffect, useState } from "react";
 import {
   AutoCaptureState,
+  StreamStats,
+  getStreamStats,
   subscribeAutoCapture,
+  subscribeStreamStats,
 } from "../lib/auto-capture";
 
 const DISMISS_KEY = "brifo_sys_audio_warning_dismissed";
 
 export function SystemAudioWarningBanner() {
   const [state, setState] = useState<AutoCaptureState | null>(null);
+  const [stats, setStats] = useState<StreamStats>(() => getStreamStats());
   const [dismissedFor, setDismissedFor] = useState<string | null>(
     () => sessionStorage.getItem(DISMISS_KEY),
   );
 
   useEffect(() => subscribeAutoCapture(setState), []);
+  useEffect(() => subscribeStreamStats(setStats), []);
 
   const shouldShow =
     state?.status === "recording" &&
@@ -53,6 +58,11 @@ export function SystemAudioWarningBanner() {
             in the transcript. Grant <strong>Screen Recording</strong> in
             System Settings and restart Brifo to transcribe everyone.
           </p>
+          {stats.systemAudioReason && (
+            <p className="text-[11px] text-gray-500 mt-1 break-words font-mono">
+              {stats.systemAudioReason}
+            </p>
+          )}
         </div>
         <button
           onClick={() => void openScreenSettings()}

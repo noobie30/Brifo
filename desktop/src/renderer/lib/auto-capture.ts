@@ -126,6 +126,11 @@ export interface StreamStats {
   segmentsAccepted: number;
   segmentsDropped: number;
   lastBackendError: string | null;
+  // Why system audio is unavailable, when it is. Populated during capture
+  // start from getMixedAudioStreams so UI layers can distinguish "Screen
+  // Recording permission denied" from "getUserMedia threw NotAllowedError"
+  // from "no audio track" — otherwise they all collapse to "unavailable".
+  systemAudioReason: string | null;
 }
 
 let streamStats: StreamStats = {
@@ -136,6 +141,7 @@ let streamStats: StreamStats = {
   segmentsAccepted: 0,
   segmentsDropped: 0,
   lastBackendError: null,
+  systemAudioReason: null,
 };
 const streamStatsListeners = new Set<(stats: StreamStats) => void>();
 
@@ -175,6 +181,7 @@ function resetStreamStats() {
     segmentsAccepted: 0,
     segmentsDropped: 0,
     lastBackendError: null,
+    systemAudioReason: null,
   };
   emitStreamStats();
 }
@@ -430,9 +437,7 @@ function setupSilenceDetection(stream: MediaStream) {
   }, SILENCE_SAMPLE_MS);
 }
 
-async function captureSystemAudio(
-  sourceId: string,
-): Promise<MediaStream | null> {
+async function captureSystemAudio(sourceId: string): Promise<MediaStream> {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -451,7 +456,10 @@ async function captureSystemAudio(
       "[brifo][auto-capture] captureSystemAudio failed:",
       error instanceof Error ? error.message : error,
     );
-    return null;
+    // Re-throw so getMixedAudioStreams can record the specific error name
+    // (NotAllowedError / NotFoundError / NotReadableError) into streamStats
+    // instead of showing a generic "unavailable" with no cause.
+    throw error;
   }
 }
 
@@ -466,6 +474,7 @@ function isSystemAudioEnabled(): boolean {
 interface MixedAudioResult {
   stream: MediaStream;
   systemAudioStatus: SystemAudioStatus;
+  systemAudioReason: string | null;
 }
 
 async function getMixedAudioStreams(): Promise<MixedAudioResult> {
@@ -498,19 +507,22 @@ async function getMixedAudioStreams(): Promise<MixedAudioResult> {
 
   // Mix in system audio (others' voices) if the user enabled it.
   let systemAudioStatus: SystemAudioStatus = "disabled";
+  let systemAudioReason: string | null = null;
   if (isSystemAudioEnabled()) {
     // Assume unavailable unless we successfully connect a track below.
     systemAudioStatus = "unavailable";
     try {
       const sourceId = await window.electronAPI.getScreenCaptureSourceId();
       if (!sourceId) {
+        systemAudioReason =
+          "No screen capture source — Screen Recording permission likely denied.";
         console.warn(
           "[brifo][auto-capture] System audio unavailable: no screen capture source (Screen Recording permission denied?).",
         );
       } else {
         const systemStream = await captureSystemAudio(sourceId);
-        const systemAudioTrack = systemStream?.getAudioTracks()[0];
-        if (systemStream && systemAudioTrack) {
+        const systemAudioTrack = systemStream.getAudioTracks()[0];
+        if (systemAudioTrack) {
           const systemSource =
             audioContext.createMediaStreamSource(systemStream);
           systemSource.connect(destination);
@@ -532,12 +544,22 @@ async function getMixedAudioStreams(): Promise<MixedAudioResult> {
             }
           });
         } else {
+          systemAudioReason =
+            "System audio source returned no audio track.";
           console.warn(
             "[brifo][auto-capture] System audio unavailable: getUserMedia returned no audio track.",
           );
         }
       }
     } catch (error) {
+      // Surface the specific DOMException name so users can tell
+      // NotAllowedError (permission) from NotFoundError (no source) from
+      // NotReadableError (device busy). Previously all these collapsed to
+      // a generic "unavailable" and the user had no way to act on it.
+      systemAudioReason =
+        error instanceof Error
+          ? `${error.name}: ${error.message}`
+          : String(error);
       console.error(
         "[brifo][auto-capture] System audio setup threw:",
         error instanceof Error ? error.message : error,
@@ -548,7 +570,7 @@ async function getMixedAudioStreams(): Promise<MixedAudioResult> {
   const stream = destination.stream.getAudioTracks().length
     ? destination.stream
     : micStream;
-  return { stream, systemAudioStatus };
+  return { stream, systemAudioStatus, systemAudioReason };
 }
 
 export function getAutoCaptureState() {
@@ -654,7 +676,8 @@ export async function startAutoCapture(input: StartCaptureInput) {
   }
 
   try {
-    const { stream, systemAudioStatus } = await getMixedAudioStreams();
+    const { stream, systemAudioStatus, systemAudioReason } =
+      await getMixedAudioStreams();
     stopInProgress = false;
 
     try {
@@ -680,6 +703,10 @@ export async function startAutoCapture(input: StartCaptureInput) {
     lastReconnectAttemptAt = 0;
     totalBytesStreamed = 0;
     resetStreamStats();
+    if (systemAudioReason) {
+      streamStats = { ...streamStats, systemAudioReason };
+      emitStreamStats();
+    }
     setupPcmStreaming(stream);
 
     setupSilenceDetection(stream);
