@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   BrifoMark,
   BtnPrimary,
+  BtnSecondary,
   IconApple,
   IconMenu,
   IconX,
@@ -52,7 +53,16 @@ export function Header() {
             )}
           </button>
 
-          <div className="hidden md:block">
+          <div className="hidden md:flex items-center gap-2">
+            <BtnSecondary
+              asAnchor
+              href="https://forms.gle/Yr6WrWgruwj4GWYt6"
+              target="_blank"
+              rel="noopener noreferrer"
+              size="md"
+            >
+              Join the beta
+            </BtnSecondary>
             <BtnPrimary
               asAnchor
               href={downloadUrl}
@@ -68,7 +78,7 @@ export function Header() {
 
       {menuOpen && (
         <div
-          className="md:hidden px-6 pb-3"
+          className="md:hidden px-6 pb-3 flex flex-col gap-2"
           style={{ borderTop: "1px solid var(--color-divider)" }}
         >
           <BtnPrimary
@@ -81,6 +91,16 @@ export function Header() {
             <IconApple size={15} />
             Download for Mac
           </BtnPrimary>
+          <BtnSecondary
+            asAnchor
+            href="https://forms.gle/Yr6WrWgruwj4GWYt6"
+            target="_blank"
+            rel="noopener noreferrer"
+            size="md"
+            className="w-full"
+          >
+            Join the beta
+          </BtnSecondary>
         </div>
       )}
     </header>

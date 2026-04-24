@@ -1,5 +1,6 @@
 import {
   BtnPrimary,
+  BtnSecondary,
   Eyebrow,
   IconApple,
   IconCheck,
@@ -56,11 +57,20 @@ export function Hero() {
           have to. No bot joins the call.
         </p>
 
-        <div className="mt-9 flex flex-col items-center gap-3">
+        <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
           <BtnPrimary asAnchor href={downloadUrl} download size="lg">
             <IconApple size={16} />
             Download for Mac
           </BtnPrimary>
+          <BtnSecondary
+            asAnchor
+            href="https://forms.gle/Yr6WrWgruwj4GWYt6"
+            target="_blank"
+            rel="noopener noreferrer"
+            size="lg"
+          >
+            Join the beta
+          </BtnSecondary>
         </div>
       </div>
     </section>
