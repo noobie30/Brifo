@@ -1,5 +1,6 @@
 import { BtnOnDark, IconApple } from "../lib/design";
 import { trackBetaClick, trackDownload } from "../lib/analytics";
+import { BetaInstallNote } from "./BetaInstallNote";
 
 export function CTA() {
   const downloadUrl =
@@ -82,6 +83,8 @@ export function CTA() {
             Join the beta
           </a>
         </div>
+
+        <BetaInstallNote tone="dark" location="cta" />
       </div>
     </section>
   );

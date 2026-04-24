@@ -6,6 +6,7 @@ import {
   IconCheck,
 } from "../lib/design";
 import { trackBetaClick, trackDownload } from "../lib/analytics";
+import { BetaInstallNote } from "./BetaInstallNote";
 
 export function Hero() {
   const downloadUrl =
@@ -80,6 +81,8 @@ export function Hero() {
             Join the beta
           </BtnSecondary>
         </div>
+
+        <BetaInstallNote tone="light" location="hero" />
       </div>
     </section>
   );
