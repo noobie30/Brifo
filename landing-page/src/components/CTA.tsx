@@ -65,7 +65,14 @@ export function CTA() {
             <IconApple size={16} />
             Download for Mac
           </BtnOnDark>
-         
+          <a
+            href="https://forms.gle/Yr6WrWgruwj4GWYt6"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-[10px] font-medium whitespace-nowrap transition-colors cursor-pointer h-[46px] px-6 text-[15px] bg-transparent text-white border border-white/40 hover:border-white hover:bg-white/10"
+          >
+            Join the beta
+          </a>
         </div>
       </div>
     </section>
