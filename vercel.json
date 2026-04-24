@@ -4,6 +4,8 @@
   "installCommand": "npm install --include=dev",
   "outputDirectory": "landing-page/dist",
   "framework": null,
+  "cleanUrls": true,
+  "trailingSlash": false,
   "rewrites": [
     {
       "source": "/:path*",
@@ -19,6 +21,13 @@
     },
     { "source": "/api", "destination": "/api" },
     { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/about", "destination": "/about/index.html" },
+    { "source": "/privacy", "destination": "/privacy/index.html" },
+    { "source": "/terms", "destination": "/terms/index.html" },
+    { "source": "/compare", "destination": "/compare/index.html" },
+    { "source": "/compare/brifo-vs-otter", "destination": "/compare/brifo-vs-otter/index.html" },
+    { "source": "/compare/brifo-vs-granola", "destination": "/compare/brifo-vs-granola/index.html" },
+    { "source": "/compare/brifo-vs-fireflies", "destination": "/compare/brifo-vs-fireflies/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

@@ -1,6 +1,10 @@
-# Brifo - AI Meeting Notes
+# Brifo — AI Meeting Notes for Mac
 # https://brifo.in
-
+#
+# Brifo (AI meeting notes app) — the macOS desktop app at brifo.in.
+# Not affiliated with Brifo Logistics Pvt Ltd or Brifo Infrabuild Services
+# Pvt Ltd — those are unrelated Indian logistics companies.
+#
 # Content Signals (contentsignals.org / draft-romm-aipref-contentsignals)
 # Marketing content: OK for agents to answer user questions and search,
 # not used for model training.
@@ -11,7 +15,24 @@ Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
 Sitemap: https://brifo.in/sitemap.xml
 
-# AI Crawlers - explicitly allowed to read for search/answer, not train
+# ——— Major search engines ———————————————————————
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: YandexBot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+# ——— AI crawlers (explicitly allowed for search / answer / input;
+#                  not allowed for model training) ———————————————
 User-agent: GPTBot
 Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
@@ -20,7 +41,19 @@ User-agent: ChatGPT-User
 Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
 
+User-agent: OAI-SearchBot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
 User-agent: ClaudeBot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: Claude-Web
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: anthropic-ai
 Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
 
@@ -28,6 +61,80 @@ User-agent: PerplexityBot
 Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
 
+User-agent: Perplexity-User
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
 User-agent: Google-Extended
 Content-Signal: ai-train=no, search=yes, ai-input=yes
 Allow: /
+
+User-agent: Google-CloudVertexBot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: GoogleOther
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: Amazonbot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: CCBot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: cohere-ai
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: cohere-training-data-crawler
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: Diffbot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: DuckAssistBot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: Bytespider
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: FacebookBot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: Meta-ExternalFetcher
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: YouBot
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: Mistralai-User
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+User-agent: MistralAI-User
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+# ——— Sitemaps ————————————————————————————
+Sitemap: https://brifo.in/sitemap.xml

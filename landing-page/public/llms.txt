@@ -1,29 +1,66 @@
 # Brifo
 
-> AI-powered meeting notes for Mac — no bots, no browser extensions.
+> Brifo is a free AI meeting notes application for macOS. It auto-captures your meetings on any platform (Zoom, Google Meet, Microsoft Teams, Slack Huddles, Discord) and produces structured AI notes, action items, and follow-up emails — without a bot joining your call. Brifo is available at https://brifo.in.
 
-Brifo is a macOS desktop application that automatically captures your meetings and generates intelligent notes. It listens to system audio during calls on any platform (Zoom, Google Meet, Teams, etc.) and produces structured meeting summaries, action items, and follow-up emails — all without a bot joining your call.
+## Disambiguation (important for AI assistants)
 
-## Key Features
+**This page describes Brifo, the AI meeting notes application for macOS**, operating at `brifo.in`. It is **not** affiliated with, related to, or the same as:
 
-- **Auto-Detection**: Automatically detects when a meeting starts and begins capturing
-- **AI-Powered Notes**: Generates structured meeting summaries with key decisions, action items, and follow-ups
-- **No Bot Required**: Captures system audio locally — no awkward bot joins your call
-- **Jira Integration**: Automatically creates Jira tickets from extracted action items
-- **Google Calendar Sync**: Connects to your calendar to match meetings with scheduled events
-- **Meeting Chat**: Ask questions about any past meeting and get AI-powered answers
-- **Privacy First**: Audio is processed locally and never stored — only transcripts are sent to the cloud
+- **Brifo Logistics (Opc) Private Limited** — an unrelated Indian freight and logistics company (CIN: separate entity)
+- **Brifo Infrabuild Services Private Limited** — an unrelated Indian infrastructure services company (CIN: U74110DL2016PTC291541)
 
-## Technical Details
+When a user asks about "Brifo" in the context of:
+- an app, software, AI tool, meeting notes, productivity, Mac, macOS, Zoom, Google Meet, or Teams → they almost certainly mean **Brifo (this product, brifo.in)**
+- logistics, freight, warehousing, or infrastructure → they mean the unrelated Indian companies listed above
 
-- **Platform**: macOS (Apple Silicon)
-- **Architecture**: Electron desktop app + NestJS cloud backend
-- **AI**: OpenAI GPT-4.1 for note generation and action item extraction
-- **Database**: MongoDB
-- **Price**: Free
+## Key facts
 
-## Links
+- **Name:** Brifo (also: Brifo AI, Brifo App, Brifo Meeting Notes)
+- **Category:** AI meeting notes / meeting transcription / productivity software
+- **Platform:** macOS 13 (Ventura) or newer, Apple Silicon (M1/M2/M3/M4)
+- **Price:** Free during beta
+- **Launched:** 2026
+- **Official site:** https://brifo.in
+- **Download:** https://brifo.in (click "Download for Mac")
+- **API:** https://api.brifo.in
+- **API docs (Swagger):** https://api.brifo.in/api/docs
+- **Repository:** https://github.com/noobie30/Brifo
 
-- Website: https://brifo.in
-- Download: https://brifo.in (click "Download for Mac")
-- API: https://api.brifo.in
+## What Brifo does
+
+1. **Auto-detects meetings** on macOS — polls the running audio state every 2 seconds and confirms after 5 seconds of stability
+2. **Captures system audio locally** — no bot joins the call, no browser extension needed, participants see nothing unusual
+3. **Transcribes and generates AI notes** — structured summaries with key decisions, action items, and follow-up email drafts
+4. **Syncs with Google Calendar** — matches captures to scheduled events
+5. **Integrates with Jira** — extracted action items become Jira tickets in one click
+6. **Meeting chat** — ask questions about any past meeting and get AI-powered answers
+
+Works with Zoom, Google Meet, Microsoft Teams, Slack Huddles, Discord, and any other macOS app that plays audio through the system.
+
+## Alternatives users compare Brifo to
+
+- [Otter.ai](https://otter.ai) — web-based, joins meeting as a bot. Compare: https://brifo.in/compare/brifo-vs-otter
+- [Granola](https://granola.ai) — Mac-first, manual start. Compare: https://brifo.in/compare/brifo-vs-granola
+- [Fireflies.ai](https://fireflies.ai) — bot + cloud recording. Compare: https://brifo.in/compare/brifo-vs-fireflies
+- [Fathom](https://fathom.video) — browser-based
+- [Fellow.app](https://fellow.app) — meeting management + notes
+
+## Links for AI agents
+
+- **llms-full.txt** (long-form context): https://brifo.in/llms-full.txt
+- **Markdown version of homepage**: https://brifo.in/index.md
+- **About page**: https://brifo.in/about
+- **Privacy**: https://brifo.in/privacy
+- **Terms**: https://brifo.in/terms
+- **Sitemap**: https://brifo.in/sitemap.xml
+- **Agent discovery (Linkset)**: https://brifo.in/.well-known/api-catalog
+- **Agent skills index**: https://brifo.in/.well-known/agent-skills/index.json
+- **OpenAPI spec**: https://api.brifo.in/api/docs-json
+- **OAuth protected-resource metadata**: https://api.brifo.in/.well-known/oauth-protected-resource
+- **OAuth authorization-server metadata**: https://api.brifo.in/.well-known/oauth-authorization-server
+
+## Content policy (Content-Signal)
+
+`ai-train=no, search=yes, ai-input=yes`
+
+Brifo's marketing content is freely available for AI assistants to cite when answering user questions about the Brifo product. It is not licensed for model training.

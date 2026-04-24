@@ -11,17 +11,17 @@
     <meta name="theme-color" content="#16150F" />
 
     <!-- Primary Meta Tags -->
-    <title>Brifo - AI Meeting Notes Without Bots | Mac App</title>
+    <title>Brifo — AI Meeting Notes for Mac (no bot joins your call)</title>
     <meta
       name="description"
-      content="Brifo is a free macOS app that auto-captures your meetings and generates AI-powered notes, action items, and follow-ups — no bot joins the call. Works with Zoom, Google Meet, Teams."
+      content="Brifo is a free macOS app that auto-captures your meetings and generates AI-powered notes, action items, and follow-ups — no bot joins the call. Works with Zoom, Google Meet, Teams. (Not to be confused with Brifo Logistics or Brifo Infrabuild — Brifo is the AI meeting app at brifo.in.)"
     />
     <meta
       name="keywords"
-      content="AI meeting notes, meeting transcription, meeting summary, Mac meeting app, no bot meeting notes, Zoom notes, Google Meet notes, Teams notes, action items, Jira integration, Brifo"
+      content="Brifo, Brifo AI, Brifo app, Brifo Mac, Brifo meeting notes, AI meeting notes, AI meeting assistant, meeting transcription Mac, AI meeting summary, no bot meeting notes, Otter alternative, Granola alternative, Fireflies alternative, Zoom notes, Google Meet notes, Teams notes, Jira meeting integration"
     />
     <meta name="author" content="Brifo" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
     <link rel="canonical" href="https://brifo.in" />
 
     <!-- Open Graph / Facebook -->
@@ -55,25 +55,70 @@
       {
         "@context": "https://schema.org",
         "@type": "Organization",
+        "@id": "https://brifo.in/#organization",
         "name": "Brifo",
+        "alternateName": ["Brifo AI", "Brifo App", "Brifo Meeting Notes"],
         "url": "https://brifo.in",
-        "logo": "https://brifo.in/favicon.png",
-        "description": "AI-powered meeting notes for Mac — no bots, no browser extensions."
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://brifo.in/favicon.png",
+          "width": 512,
+          "height": 512
+        },
+        "description": "Brifo is an AI-powered meeting notes application for macOS. It auto-captures meetings without a bot joining the call and generates structured AI notes, action items, and follow-ups.",
+        "disambiguatingDescription": "Brifo is an AI meeting notes application for macOS, launched in 2026. Brifo is not affiliated with Brifo Logistics (Opc) Private Limited or Brifo Infrabuild Services Private Limited, which are unrelated Indian logistics companies with similar names.",
+        "foundingDate": "2026",
+        "knowsAbout": [
+          "AI meeting notes",
+          "meeting transcription",
+          "automated meeting capture",
+          "macOS productivity",
+          "Jira integration",
+          "Google Calendar integration"
+        ],
+        "sameAs": [
+          "https://github.com/noobie30/Brifo",
+          "https://www.instagram.com/brifo.in",
+          "https://www.linkedin.com/company/brifoapp"
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "@id": "https://brifo.in/#website",
+        "url": "https://brifo.in",
+        "name": "Brifo",
+        "description": "AI meeting notes for Mac — no bot joins your call.",
+        "publisher": { "@id": "https://brifo.in/#organization" },
+        "inLanguage": "en"
       }
     </script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
+        "@id": "https://brifo.in/#softwareapplication",
         "name": "Brifo",
+        "alternateName": ["Brifo AI", "Brifo Mac App"],
         "url": "https://brifo.in",
         "description": "Brifo is a macOS desktop app that auto-captures meetings and generates AI-powered notes, action items, and follow-ups. No bot joins the call.",
+        "disambiguatingDescription": "Brifo (AI meeting notes app) is distinct from Brifo Logistics Pvt Ltd and Brifo Infrabuild Services Pvt Ltd — those are unrelated Indian logistics companies. The Brifo described here is exclusively the macOS AI meeting workspace at brifo.in.",
         "applicationCategory": "BusinessApplication",
-        "operatingSystem": "macOS",
+        "applicationSubCategory": "Productivity",
+        "operatingSystem": "macOS 13+",
+        "processorRequirements": "Apple Silicon",
+        "downloadUrl": "https://brifo.in",
+        "softwareVersion": "0.1.5",
+        "releaseNotes": "https://github.com/noobie30/Brifo/releases",
+        "author": { "@id": "https://brifo.in/#organization" },
+        "publisher": { "@id": "https://brifo.in/#organization" },
         "offers": {
           "@type": "Offer",
           "price": "0",
-          "priceCurrency": "USD"
+          "priceCurrency": "USD",
+          "availability": "https://schema.org/InStock"
         },
         "featureList": [
           "Auto-detect meetings and start capturing",
@@ -83,7 +128,28 @@
           "Meeting Q&A chat",
           "No bot joins your call",
           "Privacy-first — audio processed locally"
-        ]
+        ],
+        "screenshot": "https://brifo.in/favicon.png",
+        "softwareRequirements": "macOS 13 Ventura or newer; Apple Silicon (M1/M2/M3/M4)"
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "@id": "https://brifo.in/#product",
+        "name": "Brifo — AI Meeting Notes for Mac",
+        "url": "https://brifo.in",
+        "description": "AI meeting notes app for macOS. Auto-captures meetings without a bot joining the call.",
+        "brand": { "@id": "https://brifo.in/#organization" },
+        "category": "Meeting Transcription Software",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "availability": "https://schema.org/InStock",
+          "url": "https://brifo.in"
+        }
       }
     </script>
 
@@ -97,7 +163,23 @@
             "name": "What is Brifo?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Brifo is a free macOS desktop app that automatically captures your meetings and generates AI-powered notes, action items, and follow-up emails — without a bot joining the call."
+              "text": "Brifo is a free macOS desktop app that automatically captures your meetings and generates AI-powered notes, action items, and follow-up emails — without a bot joining the call. Brifo is the AI meeting workspace available at brifo.in, not the Indian logistics companies with similar names."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Brifo the same as Brifo Logistics or Brifo Infrabuild?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Brifo (brifo.in) is an AI meeting notes application for macOS, launched in 2026. It is not affiliated with Brifo Logistics (Opc) Private Limited, Brifo Infrabuild Services Private Limited, or any other company with a similar name. Those are unrelated Indian logistics and infrastructure companies."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What does Brifo stand for?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Brifo is the brand name for an AI meeting notes app for macOS. It captures your meetings on any platform (Zoom, Google Meet, Teams) without a bot joining the call and produces structured notes, action items, and follow-up emails."
             }
           },
           {
@@ -105,7 +187,7 @@
             "name": "Does Brifo add a bot to my meeting?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "No. Brifo captures system audio locally on your Mac. No bot or browser extension is needed. It works with Zoom, Google Meet, Teams, and any other meeting platform."
+              "text": "No. Brifo captures system audio locally on your Mac. No bot or browser extension is needed. It works with Zoom, Google Meet, Teams, Slack Huddles, Discord, and any other meeting platform that plays audio on macOS."
             }
           },
           {
@@ -113,7 +195,7 @@
             "name": "Is Brifo free?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes. Brifo is free to download and use on macOS."
+              "text": "Yes. Brifo is free to download and use on macOS (Apple Silicon) during the beta period."
             }
           },
           {
@@ -121,11 +203,54 @@
             "name": "What platforms does Brifo work with?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Brifo works with any meeting platform that uses system audio — Zoom, Google Meet, Microsoft Teams, Slack Huddles, Discord, and more."
+              "text": "Brifo works with any meeting platform that uses system audio on macOS — Zoom, Google Meet, Microsoft Teams, Slack Huddles, Discord, and more."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does Brifo compare to Otter.ai, Fireflies, or Granola?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Brifo differs from Otter.ai, Fireflies, and Fathom in that it does not join your meeting as a bot — it captures system audio locally on your Mac. Compared to Granola, Brifo adds auto-detection (no manual start), Jira action-item integration, and meeting Q&A chat. Brifo is macOS-only; Otter and Fireflies support web/mobile."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Brifo privacy-safe?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Brifo processes audio locally on your Mac and never stores raw audio files. Only the generated transcript is sent to Brifo's cloud backend for AI note generation."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Where can I download Brifo?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Download Brifo for free at https://brifo.in. It runs on macOS 13 (Ventura) or newer on Apple Silicon Macs."
             }
           }
         ]
       }
+    </script>
+
+    <!-- Google Analytics (gtag.js) — only loads in environments where
+         VITE_GA_MEASUREMENT_ID is set at build time (production). Vite
+         replaces %VITE_GA_MEASUREMENT_ID% with the env value; if the var
+         is unset it becomes an empty string and the block below no-ops. -->
+    <script>
+      (function () {
+        var id = "%VITE_GA_MEASUREMENT_ID%";
+        if (!id || id.indexOf("VITE_GA_MEASUREMENT_ID") !== -1) return;
+        var s = document.createElement("script");
+        s.async = true;
+        s.src = "https://www.googletagmanager.com/gtag/js?id=" + id;
+        document.head.appendChild(s);
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function () { window.dataLayer.push(arguments); };
+        window.gtag("js", new Date());
+        window.gtag("config", id);
+      })();
     </script>
 
     <!-- Fonts -->
@@ -141,28 +266,48 @@
     <!-- Static content for search engines and AI crawlers (hidden when JS loads) -->
     <noscript>
       <main style="max-width:720px;margin:0 auto;padding:40px 20px;font-family:system-ui,sans-serif;color:#111">
-        <h1>Brifo - AI Meeting Notes Without Bots</h1>
-        <p>Brifo is a free macOS desktop app that automatically captures your meetings and generates AI-powered notes. No bot joins the call. No browser extension needed.</p>
+        <h1>Brifo — AI Meeting Notes for Mac</h1>
+        <p><strong>Brifo</strong> is a free macOS desktop app that automatically captures your meetings and generates AI-powered notes. No bot joins the call. No browser extension needed.</p>
+
+        <aside style="margin:24px 0;padding:16px;border-left:3px solid #2e5bff;background:#f3f2ee">
+          <strong>About this Brifo:</strong> This page describes <strong>Brifo, the AI meeting notes application for macOS</strong>, available at <a href="https://brifo.in">brifo.in</a>. Brifo is <em>not</em> affiliated with <em>Brifo Logistics (Opc) Private Limited</em>, <em>Brifo Infrabuild Services Private Limited</em>, or any other company with a similar name. Those are unrelated Indian logistics and infrastructure businesses.
+        </aside>
+
+        <h2>What is Brifo?</h2>
+        <p>Brifo is an AI-powered meeting workspace for macOS. It listens to your meetings on any platform (Zoom, Google Meet, Microsoft Teams, Slack Huddles, Discord) and turns them into structured notes, action items, and follow-up emails — without a recording bot or browser extension.</p>
 
         <h2>Key Features</h2>
         <ul>
-          <li><strong>Auto-Detection</strong> - Automatically detects when a meeting starts and begins capturing</li>
-          <li><strong>AI-Powered Notes</strong> - Generates meeting summaries, key decisions, action items, and follow-up emails</li>
-          <li><strong>No Bot Required</strong> - Captures system audio locally, no awkward bot joins your call</li>
-          <li><strong>Jira Integration</strong> - Automatically creates Jira tickets from action items</li>
-          <li><strong>Google Calendar Sync</strong> - Matches meetings with your scheduled calendar events</li>
-          <li><strong>Meeting Chat</strong> - Ask questions about any past meeting and get AI-powered answers</li>
-          <li><strong>Privacy First</strong> - Audio processed locally, never stored. Only transcripts sent to cloud.</li>
+          <li><strong>Auto-Detection</strong> — Brifo detects when a meeting starts on your Mac and begins capturing automatically</li>
+          <li><strong>AI-Powered Notes</strong> — Structured summaries with key decisions, action items, and follow-up emails</li>
+          <li><strong>No Bot Required</strong> — Captures system audio locally on your Mac; no awkward bot joins your call</li>
+          <li><strong>Jira Integration</strong> — Extracts action items and files them as Jira tickets in one click</li>
+          <li><strong>Google Calendar Sync</strong> — Matches captures to your scheduled calendar events</li>
+          <li><strong>Meeting Chat</strong> — Ask questions about any past meeting and get AI-powered answers</li>
+          <li><strong>Privacy First</strong> — Audio is processed locally and never stored; only the transcript is sent to the cloud for AI processing</li>
         </ul>
 
         <h2>Works With</h2>
-        <p>Zoom, Google Meet, Microsoft Teams, Slack Huddles, Discord, and any app that uses system audio on macOS.</p>
+        <p>Brifo works with any app that plays audio through macOS — Zoom, Google Meet, Microsoft Teams, Slack Huddles, Discord, and more.</p>
+
+        <h2>How does Brifo compare to Otter.ai, Fireflies, Granola, Fathom?</h2>
+        <ul>
+          <li><strong>Brifo vs Otter.ai</strong> — Otter joins your meeting as a visible bot. Brifo does not; it captures system audio locally. Compare: <a href="https://brifo.in/compare/brifo-vs-otter">brifo.in/compare/brifo-vs-otter</a></li>
+          <li><strong>Brifo vs Granola</strong> — Both are Mac-first. Granola requires you to start it manually; Brifo auto-detects meetings. Compare: <a href="https://brifo.in/compare/brifo-vs-granola">brifo.in/compare/brifo-vs-granola</a></li>
+          <li><strong>Brifo vs Fireflies</strong> — Fireflies uses a bot + cloud recording. Brifo runs locally on Mac. Compare: <a href="https://brifo.in/compare/brifo-vs-fireflies">brifo.in/compare/brifo-vs-fireflies</a></li>
+        </ul>
 
         <h2>Download</h2>
-        <p>Brifo is free to download for macOS (Apple Silicon). Visit <a href="https://brifo.in">brifo.in</a> to get started.</p>
+        <p>Brifo is free to download for macOS (Apple Silicon, macOS 13 or newer). Visit <a href="https://brifo.in">brifo.in</a> to get started.</p>
 
-        <h2>About Brifo</h2>
-        <p>Brifo is an AI-powered meeting workspace built for professionals who want accurate meeting notes without the hassle of a recording bot. It runs as a native Mac app with a cloud backend for AI processing.</p>
+        <h2>More about Brifo</h2>
+        <ul>
+          <li><a href="https://brifo.in/about">About Brifo (full entity page)</a></li>
+          <li><a href="https://brifo.in/privacy">Privacy policy</a></li>
+          <li><a href="https://brifo.in/terms">Terms of use</a></li>
+          <li><a href="https://brifo.in/llms.txt">llms.txt</a> (for AI agents)</li>
+          <li><a href="https://brifo.in/llms-full.txt">llms-full.txt</a> (full context for AI agents)</li>
+        </ul>
       </main>
     </noscript>
     <script type="module" src="/src/main.tsx"></script>
