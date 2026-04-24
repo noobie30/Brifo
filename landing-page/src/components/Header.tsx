@@ -7,6 +7,11 @@ import {
   IconMenu,
   IconX,
 } from "../lib/design";
+import {
+  trackBetaClick,
+  trackDownload,
+  trackMobileMenuToggle,
+} from "../lib/analytics";
 
 export function Header() {
   const downloadUrl =
@@ -42,7 +47,11 @@ export function Header() {
             type="button"
             className="inline-flex items-center justify-center rounded-md w-9 h-9 md:hidden transition-colors"
             style={{ color: "var(--color-fg-muted)" }}
-            onClick={() => setMenuOpen((prev) => !prev)}
+            onClick={() => {
+              const next = !menuOpen;
+              setMenuOpen(next);
+              trackMobileMenuToggle(next ? "open" : "closed");
+            }}
             aria-label="Toggle menu"
             aria-expanded={menuOpen}
           >
@@ -60,6 +69,7 @@ export function Header() {
               target="_blank"
               rel="noopener noreferrer"
               size="md"
+              onClick={() => trackBetaClick("header")}
             >
               Join the beta
             </BtnSecondary>
@@ -68,6 +78,7 @@ export function Header() {
               href={downloadUrl}
               download
               size="md"
+              onClick={() => trackDownload("header")}
             >
               <IconApple size={15} />
               Download for Mac
@@ -87,6 +98,7 @@ export function Header() {
             download
             size="md"
             className="w-full mt-3"
+            onClick={() => trackDownload("header")}
           >
             <IconApple size={15} />
             Download for Mac
@@ -98,6 +110,7 @@ export function Header() {
             rel="noopener noreferrer"
             size="md"
             className="w-full"
+            onClick={() => trackBetaClick("header")}
           >
             Join the beta
           </BtnSecondary>

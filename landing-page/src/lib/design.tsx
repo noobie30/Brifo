@@ -34,7 +34,11 @@ export function Eyebrow({
 // ————————————————————————————————————————————————————————
 // Buttons — three variants the landing page needs.
 // ————————————————————————————————————————————————————————
-type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+type ButtonProps = Omit<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  "onClick"
+> & {
+  onClick?: React.MouseEventHandler<HTMLElement>;
   asAnchor?: boolean;
   href?: string;
   download?: boolean;
@@ -62,6 +66,7 @@ export function BtnPrimary({
   download,
   rel,
   target,
+  onClick,
   children,
   className = "",
   size = "lg",
@@ -75,6 +80,7 @@ export function BtnPrimary({
         download={download}
         rel={rel}
         target={target}
+        onClick={onClick}
         className={cls}
       >
         {children}
@@ -82,7 +88,7 @@ export function BtnPrimary({
     );
   }
   return (
-    <button type="button" className={cls} {...rest}>
+    <button type="button" className={cls} onClick={onClick} {...rest}>
       {children}
     </button>
   );
@@ -94,6 +100,7 @@ export function BtnSecondary({
   download,
   rel,
   target,
+  onClick,
   children,
   className = "",
   size = "md",
@@ -107,6 +114,7 @@ export function BtnSecondary({
         download={download}
         rel={rel}
         target={target}
+        onClick={onClick}
         className={cls}
       >
         {children}
@@ -114,7 +122,7 @@ export function BtnSecondary({
     );
   }
   return (
-    <button type="button" className={cls} {...rest}>
+    <button type="button" className={cls} onClick={onClick} {...rest}>
       {children}
     </button>
   );
@@ -126,6 +134,7 @@ export function BtnOnDark({
   download,
   rel,
   target,
+  onClick,
   children,
   className = "",
   size = "lg",
@@ -139,6 +148,7 @@ export function BtnOnDark({
         download={download}
         rel={rel}
         target={target}
+        onClick={onClick}
         className={cls}
       >
         {children}
@@ -146,7 +156,7 @@ export function BtnOnDark({
     );
   }
   return (
-    <button type="button" className={cls} {...rest}>
+    <button type="button" className={cls} onClick={onClick} {...rest}>
       {children}
     </button>
   );

@@ -1,4 +1,5 @@
 import { BtnOnDark, IconApple } from "../lib/design";
+import { trackBetaClick, trackDownload } from "../lib/analytics";
 
 export function CTA() {
   const downloadUrl =
@@ -61,7 +62,13 @@ export function CTA() {
         </p>
 
         <div className="mt-9 flex flex-col items-center gap-3">
-          <BtnOnDark asAnchor href={downloadUrl} download size="lg">
+          <BtnOnDark
+            asAnchor
+            href={downloadUrl}
+            download
+            size="lg"
+            onClick={() => trackDownload("cta")}
+          >
             <IconApple size={16} />
             Download for Mac
           </BtnOnDark>
@@ -69,6 +76,7 @@ export function CTA() {
             href="https://forms.gle/Yr6WrWgruwj4GWYt6"
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => trackBetaClick("cta")}
             className="inline-flex items-center justify-center gap-2 rounded-[10px] font-medium whitespace-nowrap transition-colors cursor-pointer h-[46px] px-6 text-[15px] bg-transparent text-white border border-white/40 hover:border-white hover:bg-white/10"
           >
             Join the beta

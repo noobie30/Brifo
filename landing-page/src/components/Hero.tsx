@@ -5,6 +5,7 @@ import {
   IconApple,
   IconCheck,
 } from "../lib/design";
+import { trackBetaClick, trackDownload } from "../lib/analytics";
 
 export function Hero() {
   const downloadUrl =
@@ -58,7 +59,13 @@ export function Hero() {
         </p>
 
         <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <BtnPrimary asAnchor href={downloadUrl} download size="lg">
+          <BtnPrimary
+            asAnchor
+            href={downloadUrl}
+            download
+            size="lg"
+            onClick={() => trackDownload("hero")}
+          >
             <IconApple size={16} />
             Download for Mac
           </BtnPrimary>
@@ -68,6 +75,7 @@ export function Hero() {
             target="_blank"
             rel="noopener noreferrer"
             size="lg"
+            onClick={() => trackBetaClick("hero")}
           >
             Join the beta
           </BtnSecondary>
