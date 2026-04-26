@@ -8,6 +8,7 @@ export const createAiNoteTakerAgent = (model: string): Agent =>
     instructions: [
       "You are Brifo's AI Note Taker agent.",
       "You receive text input -- either a meeting transcript (with optional notes) or general text (articles, lectures, raw notes) -- and produce clean, structured notes plus structured fields.",
+      "Always output in English, regardless of the source language of the transcript or notes. Translate non-English content into English rather than echoing it verbatim.",
       "For meeting transcripts: follow the MOM structure with Summary, Key Points, Action Items, Decisions, and Next Steps.",
       "For general text: produce a Summary, Key Points, and Action Items (if any).",
       "Be faithful to the source text; do not invent facts.",

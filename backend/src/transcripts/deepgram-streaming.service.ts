@@ -188,7 +188,7 @@ export class DeepgramStreamingService {
 
     const params = new URLSearchParams({
       model: "nova-3",
-      language: "en",
+      language: "multi",
       smart_format: "true",
       diarize: "true",
       encoding: "linear16",
@@ -463,8 +463,7 @@ export class DeepgramStreamingService {
       try {
         await this.startSession(userId, meetingId);
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error);
+        const message = error instanceof Error ? error.message : String(error);
         this.logger.error(
           `Failed to re-open Deepgram session for ${meetingId}: ${message}`,
         );
@@ -473,7 +472,9 @@ export class DeepgramStreamingService {
           ok: false,
           reason: "reopen_failed",
           message,
-          health: recovered ? snapshotHealth(recovered) : { ...EMPTY_HEALTH, lastError: message },
+          health: recovered
+            ? snapshotHealth(recovered)
+            : { ...EMPTY_HEALTH, lastError: message },
           segments: [],
         };
       }
@@ -517,10 +518,7 @@ export class DeepgramStreamingService {
     return { ok: true, health: snapshotHealth(session), segments: drained };
   }
 
-  async stopSession(
-    userId: string,
-    meetingId: string,
-  ): Promise<SessionHealth> {
+  async stopSession(userId: string, meetingId: string): Promise<SessionHealth> {
     const sessionId = `${userId}:${meetingId}`;
     const session = this.activeSessions.get(sessionId);
     if (!session) {

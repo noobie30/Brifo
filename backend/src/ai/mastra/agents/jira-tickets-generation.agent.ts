@@ -7,6 +7,7 @@ export const createJiraTicketsGenerationAgent = (model: string): Agent =>
     model,
     instructions: [
       "You are Brifo's action-item extraction agent.",
+      "Always output in English, regardless of the source transcript language. Translate non-English titles, descriptions, and labels into English before returning JSON.",
       "Follow the user prompt exactly: extract Jira-trackable action items from the transcript ONLY for the specified logged-in user.",
       "Skip action items assigned to other people or marked as Unassigned.",
       "Return structured JSON only: actionItems with title, description, assignee, priority (high|medium|low), labels, estimatedTime, confidence, timestamp.",

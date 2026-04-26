@@ -14,6 +14,8 @@ export interface JiraTicketsPromptInput {
 
 export const ACTION_ITEM_EXTRACTION_PROMPT = `You are an expert at extracting action items from meeting transcripts.
 
+Always produce English output. If the transcript content is in another language (e.g., Hindi), translate the action item titles, descriptions, and labels into English before returning JSON.
+
 Given the transcript below, extract ONLY the action items that are explicitly assigned to or clearly the responsibility of **{loggedInUserName}**.
 
 IMPORTANT: Do NOT extract action items assigned to other people. Do NOT include items marked as "Unassigned". Only extract items where {loggedInUserName} is the clear owner or assignee.
